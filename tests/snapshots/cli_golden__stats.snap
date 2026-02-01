@@ -1,0 +1,16 @@
+---
+source: tests/cli_golden.rs
+expression: normalize_json(stats_json)
+---
+{
+  "ok": true,
+  "schema_version": "1",
+  "stats": {
+    "chunk_count": 1,
+    "db_size_bytes": 61440,
+    "doc_count": 1,
+    "snapshot": "",
+    "took_ms": 0,
+    "total_hits": 0
+  }
+}

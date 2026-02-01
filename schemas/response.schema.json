@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://recall.local/schema/response.json",
+  "type": "object",
+  "required": ["ok", "schema_version"],
+  "properties": {
+    "ok": { "type": "boolean" },
+    "schema_version": { "type": "string" },
+    "query": {
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "rql": { "type": ["string", "null"] },
+        "filters": { "type": ["string", "null"] },
+        "limit": { "type": "integer" },
+        "offset": { "type": "integer" }
+      },
+      "additionalProperties": true
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "score": { "type": "number" },
+          "doc": { "type": "object" },
+          "chunk": { "type": "object" },
+          "explain": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "stats": {
+      "type": "object",
+      "properties": {
+        "took_ms": { "type": "integer" },
+        "total_hits": { "type": "integer" },
+        "snapshot": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "next_offset": { "type": ["integer", "null"] },
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "message": { "type": "string" },
+        "details": { "type": ["string", "null"] },
+        "hint": { "type": ["string", "null"] }
+      },
+      "required": ["code", "message"],
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

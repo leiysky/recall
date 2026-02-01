@@ -1,0 +1,47 @@
+---
+source: tests/cli_golden.rs
+expression: normalize_json(search_json)
+---
+{
+  "ok": true,
+  "query": {
+    "filters": "doc.tag = 'docs'",
+    "limit": 4,
+    "offset": 0,
+    "rql": null,
+    "text": "hello"
+  },
+  "results": [
+    {
+      "chunk": {
+        "doc_id": "acba96a2aa4384ee962379fefb8be501ff58ad9715e8a070a112d0b17c1fa60d",
+        "id": "564bb7dab88cd86d292dadfcb0554cb4ecf6ff4380c4beec12a72fdbaef6643f",
+        "offset": 0,
+        "text": "hello world this is recall",
+        "tokens": 5
+      },
+      "doc": {
+        "hash": "6914abb3764a0783f565cca447f95354be9ea790a9fb6c6667c981d4db888004",
+        "id": "acba96a2aa4384ee962379fefb8be501ff58ad9715e8a070a112d0b17c1fa60d",
+        "mtime": "",
+        "path": "docs/a.txt",
+        "source": null,
+        "tag": "docs"
+      },
+      "explain": {
+        "lexical": 1.0,
+        "semantic": 0.4472136199474334
+      },
+      "score": 0.7236068248748779
+    }
+  ],
+  "schema_version": "1",
+  "stats": {
+    "chunk_count": null,
+    "db_size_bytes": null,
+    "doc_count": null,
+    "snapshot": "",
+    "took_ms": 0,
+    "total_hits": 1
+  }
+}
