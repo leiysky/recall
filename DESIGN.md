@@ -243,7 +243,7 @@ LIMIT <n> [OFFSET <m>];
   (`score DESC`); doc results are grouped by `doc.id` unless `ORDER BY` is specified.
 - CLI `--filter` uses the same Filter Expression Language and requires
   qualified fields (`doc.*`, `chunk.*`).
-- `ORDER BY score` only applies when `USING` is present; otherwise it is ignored.
+- `ORDER BY score` only applies when `USING` is present; otherwise default ordering applies.
 - For `SELECT ... FROM doc USING ...`, `score` is the max chunk score for that doc.
 
 ### Filter Expression Language (FEL)
@@ -269,7 +269,9 @@ Semantics:
 - With `USING` and `FROM chunk`, ordering is deterministic by default:
   - `score DESC`, then `doc.path ASC`, then `chunk.offset ASC`, then `chunk.id ASC`.
 - With `USING` and `FROM doc`, results are grouped by `doc.id` unless `ORDER BY` is specified.
-- Without `USING`, ordering follows SQLite row order unless `ORDER BY` is specified.
+- Without `USING`, deterministic default ordering applies unless `ORDER BY` is specified:
+  - `FROM doc`: `doc.path ASC`, then `doc.id ASC`.
+  - `FROM chunk`: `doc.path ASC`, then `chunk.offset ASC`, then `chunk.id ASC`.
 - `OFFSET` and `LIMIT` operate on the resulting ordering.
 
 ### Example Queries
@@ -401,7 +403,9 @@ recall.db
 - ANN is an LSH signature table (`ann_lsh`) used to shortlist candidates.
 
 ### Write Path
-- Single-writer, multi-reader (SQLite connection semantics).
+- Single-writer, multi-reader (explicit lock file + SQLite connection semantics).
+- Locking uses a sibling `.lock` file with shared (read) and exclusive (write) locks.
+- SQLite busy timeout is set to avoid immediate lock failures.
 - SQLite journaling (MVP uses `journal_mode=DELETE`, `synchronous=NORMAL`).
 - Commit is atomic via SQLite transaction boundaries.
 

@@ -904,15 +904,20 @@ fn field_to_sql_for_table(field: &FieldRef, table: Table) -> Result<String> {
 }
 
 fn order_clause(q: &RqlQuery, table: Table) -> Result<String> {
+    let default_order = match table {
+        Table::Doc => "ORDER BY doc.path ASC, doc.id ASC",
+        Table::Chunk => "ORDER BY doc.path ASC, chunk.offset ASC, chunk.id ASC",
+    };
+
     let Some((order_by, dir)) = &q.order_by else {
-        return Ok(String::new());
+        return Ok(default_order.to_string());
     };
     let dir_sql = match dir {
         OrderDir::Asc => "ASC",
         OrderDir::Desc => "DESC",
     };
     match order_by {
-        OrderBy::Score => Ok(String::new()),
+        OrderBy::Score => Ok(default_order.to_string()),
         OrderBy::Field(field) => {
             let col = field_to_sql_for_table(field, table)?;
             Ok(format!("ORDER BY {} {}", col, dir_sql))

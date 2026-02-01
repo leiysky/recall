@@ -1,6 +1,6 @@
 # ISSUE-2026-02-01-deterministic-structured-queries
 
-Status: open
+Status: done
 Milestone: M1
 Owner:
 Created: 2026-02-01
@@ -11,9 +11,12 @@ Context:
 Scope:
 - Make structured queries deterministic or require explicit ORDER BY.
 Acceptance Criteria:
-- TBD
+- Structured queries without `USING` have deterministic default ordering.
+- `ORDER BY` overrides the default ordering.
+- Documentation updated to reflect deterministic ordering rules.
+- Tests cover structured-query ordering.
 Out of Scope:
-- TBD
+- Changing ordering rules for `USING` queries beyond existing behavior.
 Notes:
 
 Links:

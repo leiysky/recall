@@ -15,11 +15,11 @@ Status: MVP complete; roadmap refreshed
 ## Next Milestones (Ordered)
 
 ### Milestone 1 — Release Hardening + Compatibility
-- Add on-disk schema versioning + migrations (incl. ANN + FTS). (issue: docs/issues/open/ISSUE-2026-02-01-schema-versioning-migrations-ann-fts.md)
-- Implement file locking + busy timeout for single-writer, multi-reader. (issue: docs/issues/open/ISSUE-2026-02-01-file-locking-busy-timeout.md)
-- Make structured queries deterministic or require explicit `ORDER BY`. (issue: docs/issues/open/ISSUE-2026-02-01-deterministic-structured-queries.md)
+- Add on-disk schema versioning + migrations (incl. ANN + FTS). (issue: docs/issues/active/ISSUE-2026-02-01-schema-versioning-migrations-ann-fts.md)
+- Implement file locking + busy timeout for single-writer, multi-reader. (issue: docs/issues/done/ISSUE-2026-02-01-file-locking-busy-timeout.md)
+- Make structured queries deterministic or require explicit `ORDER BY`. (issue: docs/issues/done/ISSUE-2026-02-01-deterministic-structured-queries.md)
 - Strengthen `recall doctor` (FTS/ANN consistency checks + repair hints). (issue: docs/issues/open/ISSUE-2026-02-01-doctor-consistency-checks-repair-hints.md)
-- Emit real `query.limit/offset` in JSON outputs. (issue: docs/issues/active/ISSUE-2026-02-01-query-limit-offset-json.md)
+- Emit real `query.limit/offset` in JSON outputs. (issue: docs/issues/done/ISSUE-2026-02-01-query-limit-offset-json.md)
 
 ### Milestone 2 — Snapshot Pagination API
 - Add explicit `--snapshot` for search/query/context. (issue: docs/issues/open/ISSUE-2026-02-01-snapshot-flag-search-query-context.md)

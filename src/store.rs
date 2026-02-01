@@ -12,17 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fs::File;
+use std::fs::OpenOptions;
 use std::path::Path;
 use std::path::PathBuf;
+use std::thread::sleep;
+use std::time::Duration;
+use std::time::Instant;
 
 use anyhow::Context;
 use anyhow::Result;
+use fs2::FileExt;
 use rusqlite::Connection;
+use rusqlite::OpenFlags;
 use rusqlite::params;
 
 pub struct Store {
     pub conn: Connection,
     pub path: PathBuf,
+    _lock: Option<File>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum StoreMode {
+    ReadOnly,
+    ReadWrite,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -43,28 +57,83 @@ impl Store {
         if path.exists() {
             anyhow::bail!("store already exists at {}", path.display());
         }
-        let conn = Connection::open(path).with_context(|| format!("open {}", path.display()))?;
-        Self::apply_pragmas(&conn)?;
+        let _lock = Self::acquire_lock(path, StoreMode::ReadWrite)?;
+        let conn = Self::open_connection(path, StoreMode::ReadWrite)?;
+        Self::apply_pragmas(&conn, StoreMode::ReadWrite)?;
         Self::create_schema(&conn)?;
         Ok(())
     }
 
-    pub fn open(path: &Path) -> Result<Self> {
-        let conn = Connection::open(path).with_context(|| format!("open {}", path.display()))?;
-        Self::apply_pragmas(&conn)?;
-        Self::create_schema(&conn)?;
+    pub fn open(path: &Path, mode: StoreMode) -> Result<Self> {
+        let lock = Self::acquire_lock(path, mode)?;
+        let conn = Self::open_connection(path, mode)?;
+        Self::apply_pragmas(&conn, mode)?;
+        if matches!(mode, StoreMode::ReadWrite) {
+            Self::create_schema(&conn)?;
+        }
         Ok(Self {
             conn,
             path: path.to_path_buf(),
+            _lock: Some(lock),
         })
     }
 
-    fn apply_pragmas(conn: &Connection) -> Result<()> {
-        conn.execute_batch(
-            "PRAGMA journal_mode=DELETE;\nPRAGMA synchronous=NORMAL;\nPRAGMA foreign_keys=ON;",
-        )
-        .context("apply pragmas")?;
+    fn open_connection(path: &Path, mode: StoreMode) -> Result<Connection> {
+        let flags = match mode {
+            StoreMode::ReadOnly => OpenFlags::SQLITE_OPEN_READ_ONLY,
+            StoreMode::ReadWrite => OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
+        };
+        let conn =
+            Connection::open_with_flags(path, flags).with_context(|| format!("open {}", path.display()))?;
+        conn.busy_timeout(Duration::from_millis(5000))
+            .context("set busy timeout")?;
+        Ok(conn)
+    }
+
+    fn apply_pragmas(conn: &Connection, mode: StoreMode) -> Result<()> {
+        let mut batch = String::from("PRAGMA foreign_keys=ON;");
+        if matches!(mode, StoreMode::ReadWrite) {
+            batch = format!(
+                "PRAGMA journal_mode=DELETE;\nPRAGMA synchronous=NORMAL;\n{batch}"
+            );
+        }
+        conn.execute_batch(&batch).context("apply pragmas")?;
         Ok(())
+    }
+
+    fn acquire_lock(path: &Path, mode: StoreMode) -> Result<File> {
+        let lock_path = path.with_extension("lock");
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(&lock_path)
+            .with_context(|| format!("open lock file {}", lock_path.display()))?;
+        let deadline = Instant::now() + Duration::from_millis(5000);
+        loop {
+            let locked = match mode {
+                StoreMode::ReadOnly => file.try_lock_shared().map_err(|err| err.to_string()),
+                StoreMode::ReadWrite => file
+                    .try_lock_exclusive()
+                    .map_err(|err| err.to_string()),
+            };
+            match locked {
+                Ok(()) => return Ok(file),
+                Err(_) if Instant::now() >= deadline => {
+                    let mode_label = match mode {
+                        StoreMode::ReadOnly => "read",
+                        StoreMode::ReadWrite => "write",
+                    };
+                    anyhow::bail!(
+                        "store is locked for {mode_label} access; another process may be using {}",
+                        path.display()
+                    );
+                }
+                Err(_) => {
+                    sleep(Duration::from_millis(50));
+                }
+            }
+        }
     }
 
     fn create_schema(conn: &Connection) -> Result<()> {
@@ -155,5 +224,25 @@ impl Store {
                 .execute("DELETE FROM ann_lsh WHERE doc_id = ?1", params![id])?;
         }
         Ok(updated)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn shared_lock_allows_multiple_readers() -> Result<()> {
+        let dir = tempdir()?;
+        let db_path = dir.path().join("recall.db");
+        Store::init(&db_path)?;
+
+        let store_a = Store::open(&db_path, StoreMode::ReadOnly)?;
+        let store_b = Store::open(&db_path, StoreMode::ReadOnly)?;
+
+        store_a.stats()?;
+        store_b.stats()?;
+        Ok(())
     }
 }

@@ -1,6 +1,6 @@
 # ISSUE-2026-02-01-schema-versioning-migrations-ann-fts
 
-Status: open
+Status: active
 Milestone: M1
 Owner:
 Created: 2026-02-01
@@ -11,9 +11,12 @@ Context:
 Scope:
 - Add on-disk schema versioning + migrations (incl. ANN + FTS).
 Acceptance Criteria:
-- TBD
+- Store records a schema version in the database.
+- Opening a store checks and migrates to the current version.
+- ANN/FTS versioning is tracked for future migrations.
+- Migration tests cover upgrade from unversioned stores.
 Out of Scope:
-- TBD
+- Implementing new ANN/FTS backends beyond version tracking.
 Notes:
 
 Links:

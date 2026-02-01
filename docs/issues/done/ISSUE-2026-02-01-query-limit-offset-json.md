@@ -1,6 +1,6 @@
 # ISSUE-2026-02-01-query-limit-offset-json
 
-Status: active
+Status: done
 Milestone: M1
 Owner:
 Created: 2026-02-01

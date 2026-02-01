@@ -38,6 +38,7 @@ use crate::config::ConfigCtx;
 use crate::output::JsonResponse;
 use crate::output::StatsOut;
 use crate::output::print_json;
+use crate::store::StoreMode;
 
 fn main() {
     if let Err(err) = run() {
@@ -141,7 +142,7 @@ fn cmd_add(
     json: bool,
 ) -> Result<()> {
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path())?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadWrite)?;
 
     let opts = ingest::IngestOptions {
         glob,
@@ -173,7 +174,7 @@ fn cmd_add(
 
 fn cmd_rm(targets: Vec<String>, purge: bool, json: bool) -> Result<()> {
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path())?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadWrite)?;
     let mut removed = 0usize;
     for target in targets {
         if std::path::Path::new(&target).exists() || target.contains(std::path::MAIN_SEPARATOR) {
@@ -213,7 +214,7 @@ fn cmd_search(
     json: bool,
 ) -> Result<()> {
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path())?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadOnly)?;
 
     let opts = query::SearchOptions {
         k,
@@ -248,7 +249,7 @@ fn cmd_search(
 
 fn cmd_query(rql_input: String, json: bool, explain: bool) -> Result<()> {
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path())?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadOnly)?;
 
     let rql_text = if let Some(path) = rql_input.strip_prefix('@') {
         std::fs::read_to_string(path).with_context(|| format!("read RQL file {path}"))?
@@ -284,7 +285,7 @@ fn cmd_export(out: Option<PathBuf>, json: bool) -> Result<()> {
         anyhow::bail!("--json requires --out for export");
     }
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path())?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadOnly)?;
 
     let stats = if let Some(path) = out {
         let file =
@@ -313,7 +314,7 @@ fn cmd_export(out: Option<PathBuf>, json: bool) -> Result<()> {
 
 fn cmd_import(path: PathBuf, json: bool) -> Result<()> {
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path())?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadWrite)?;
     let file = std::fs::File::open(&path).with_context(|| format!("open {}", path.display()))?;
     let stats = transfer::import_store(&store, &ctx.config, file)?;
 
@@ -340,7 +341,7 @@ fn cmd_context(
     json: bool,
 ) -> Result<()> {
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path())?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadOnly)?;
 
     let opts = query::SearchOptions {
         k: 100,
@@ -373,7 +374,7 @@ fn cmd_context(
 
 fn cmd_stats(json: bool) -> Result<()> {
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path())?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadWrite)?;
     let stats = store.stats()?;
     let stats_out = StatsOut {
         took_ms: 0,
@@ -399,7 +400,7 @@ fn cmd_stats(json: bool) -> Result<()> {
 
 fn cmd_doctor(json: bool) -> Result<()> {
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path())?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadOnly)?;
     let report = store.integrity_check()?;
     let stats_out = StatsOut {
         took_ms: 0,
@@ -422,7 +423,7 @@ fn cmd_doctor(json: bool) -> Result<()> {
 
 fn cmd_compact(json: bool) -> Result<()> {
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path())?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadOnly)?;
     store.compact()?;
 
     if json {

@@ -1,6 +1,6 @@
 # ISSUE-2026-02-01-file-locking-busy-timeout
 
-Status: open
+Status: done
 Milestone: M1
 Owner:
 Created: 2026-02-01
@@ -11,9 +11,12 @@ Context:
 Scope:
 - Implement file locking + busy timeout for single-writer, multi-reader.
 Acceptance Criteria:
-- TBD
+- Store enforces single-writer, multi-reader semantics via explicit file locking.
+- SQLite busy timeout configured to avoid immediate lock failures.
+- Errors for lock contention are actionable.
+- Tests cover locking behavior where feasible.
 Out of Scope:
-- TBD
+- Changes to on-disk schema or query semantics.
 Notes:
 
 Links:
