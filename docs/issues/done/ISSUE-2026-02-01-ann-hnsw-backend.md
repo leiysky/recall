@@ -1,6 +1,6 @@
 # ISSUE-2026-02-01-ann-hnsw-backend
 
-Status: open
+Status: done
 Milestone: Milestone 5 — Hybrid Retrieval Performance (Optional)
 Owner:
 Created: 2026-02-01

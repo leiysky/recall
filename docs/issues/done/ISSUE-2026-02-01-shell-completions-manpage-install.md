@@ -1,6 +1,6 @@
 # ISSUE-2026-02-01-shell-completions-manpage-install
 
-Status: open
+Status: done
 Milestone: Milestone 4 — AI-native Interface
 Owner:
 Created: 2026-02-01

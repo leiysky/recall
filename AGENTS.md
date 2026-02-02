@@ -49,6 +49,7 @@ Canonical definitions live in `DESIGN.md` under Core Principles.
 - Semantic search is explicit via `semantic("...")` in RQL or `recall search`.
 - Exact filtering is explicit via `FILTER` in RQL or `--filter` in CLI.
 - Retrieval is deterministic in v0.1; reranker stages are future work.
+- Snapshot tokens (`--snapshot`) freeze results for reproducible paging.
 
 ## Recommended Workflow
 1. `recall init` once per repository or dataset.
@@ -80,9 +81,10 @@ LIMIT <n> [OFFSET <m>];
 - Unknown `SELECT` fields are ignored in v0.1 (permissive).
 
 ### Field Catalog (Initial)
-- `doc.id`, `doc.path`, `doc.mtime`, `doc.hash`, `doc.tag`, `doc.source`.
+- `doc.id`, `doc.path`, `doc.mtime`, `doc.hash`, `doc.tag`, `doc.source`, `doc.meta`.
 - `chunk.id`, `chunk.doc_id`, `chunk.offset`, `chunk.tokens`, `chunk.text`.
 Note: `doc.size` is stored but not exposed in RQL v0.1.
+Metadata keys can be filtered via `doc.meta.<key>` (keys are normalized to lowercase with `_` separators).
 
 ### Example Queries
 ```
@@ -106,10 +108,20 @@ LIMIT 20;
 ## CLI Patterns
 - Interactive search:
   - `recall search "query" --k 8 --filter "doc.tag = 'docs'"`
+- Metadata extraction:
+  - `recall add ./docs --glob "**/*.md" --extract-meta --json`
+- Filter from file:
+  - `recall search "query" --filter @filters.txt --json`
 - Structured query:
   - `recall query --rql "SELECT chunk.text FROM chunk USING semantic('foo') LIMIT 5;"`
+- Long RQL via stdin:
+  - `cat query.rql | recall query --rql-stdin --json`
 - Context assembly:
   - `recall context "query" --budget-tokens 1200 --diversity 2 --json`
+- JSONL streaming:
+  - `recall search "query" --jsonl`
+- Snapshot paging:
+  - `recall query --rql "SELECT chunk.text FROM chunk USING semantic('foo') LIMIT 10 OFFSET 10;" --snapshot 2026-02-02T00:00:00Z --json`
 - Export/import:
   - `recall export --out recall.jsonl --json`
   - `recall import recall.jsonl --json`

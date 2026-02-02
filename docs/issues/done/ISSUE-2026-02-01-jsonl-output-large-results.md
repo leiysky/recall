@@ -1,6 +1,6 @@
 # ISSUE-2026-02-01-jsonl-output-large-results
 
-Status: open
+Status: done
 Milestone: Milestone 3 — Context as Managed Resource
 Owner:
 Created: 2026-02-01

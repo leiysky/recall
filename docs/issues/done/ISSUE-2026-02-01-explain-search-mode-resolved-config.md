@@ -1,6 +1,6 @@
 # ISSUE-2026-02-01-explain-search-mode-resolved-config
 
-Status: open
+Status: done
 Milestone: Milestone 1 — Determinism + Explainability
 Owner:
 Created: 2026-02-01

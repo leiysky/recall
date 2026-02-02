@@ -1,6 +1,6 @@
 # ISSUE-2026-02-02-cli-store-mode-safety
 
-Status: open
+Status: done
 Milestone: Milestone 2 — Local-first Reliability
 Owner:
 Created: 2026-02-02

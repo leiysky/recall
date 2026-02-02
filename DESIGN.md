@@ -25,8 +25,12 @@ Canonical source: this section defines the core principles and terms; other docs
 - Hybrid retrieval: lexical (FTS5 BM25) + semantic embeddings with explicit weights.
 - Deterministic ordering and tie-breaks; `--explain` for scoring stages.
 - Budgeted context assembly with provenance and optional diversity cap.
-- Stable `--json` output with schema versioning.
+- Stable `--json` output with schema versioning and JSONL streaming for large results.
 - JSONL export/import for portability.
+- Snapshot tokens for reproducible paging.
+- On-disk schema versioning + migrations.
+- Optional metadata extraction from Markdown headers/front matter.
+- Structure-aware chunking (markdown headings and code blocks).
 
 ## Non-goals
 - Hosted multi-tenant service.
@@ -45,6 +49,7 @@ Canonical source: this section defines the core principles and terms; other docs
 - `recall context <query>`
 - `recall stats`, `recall doctor`, `recall compact`
 - `recall export`, `recall import`
+- `recall completions`, `recall man`
 
 ### RQL (AI-native)
 ```
@@ -80,13 +85,16 @@ Notes:
   - With `USING`: `score DESC` then the same deterministic tie-breaks.
   - Without `USING`: `doc.path ASC` (and `chunk.offset ASC` for chunks).
 - `FROM doc USING ...`: `score` is the max chunk score for that doc.
-- `--explain` returns per-stage scores and any lexical sanitization fallback used.
+- `--explain` returns per-stage scores, resolved config, candidate counts, and lexical sanitization details.
+- Per-stage timing breakdowns are included in JSON stats.
+- Snapshot tokens (`--snapshot`) freeze results for reproducible pagination.
 
 ## Hybrid Retrieval
 - Lexical search via SQLite FTS5 (BM25-like); sanitized fallback if parsing fails.
 - Semantic search via embeddings (default deterministic hash).
 - Scores are normalized and combined with explicit weights from config.
 - Filters are strict and never invoke semantic inference.
+- ANN backend is configurable (`lsh`, `hnsw`, or `linear`) with LSH fallback.
 
 ## Context Assembly
 - Hard `budget_tokens`; context never exceeds the budget.
@@ -99,25 +107,25 @@ Notes:
 - Single-file store `recall.db` backed by SQLite.
 - Single-writer, multi-reader semantics with a sibling lock file.
 - No network calls unless explicitly configured by the user.
+- On-disk schema versions are stored in a `meta` table and migrated on open.
 
 ## Data Model (Logical)
-- `doc`: `id`, `path`, `mtime`, `hash`, `tag`, `source`, `deleted`.
+- `doc`: `id`, `path`, `mtime`, `hash`, `tag`, `source`, `meta`, `deleted`.
 - `chunk`: `id`, `doc_id`, `offset`, `tokens`, `text`, `embedding`, `deleted`.
+- `meta`: key/value schema metadata.
 
-## Document Metadata (Planned)
-- Problem: important fields (e.g., Status, Milestone) are embedded in Markdown
-  and cannot be filtered without free-text parsing.
-- Add an opt-in ingest flag (e.g., `--extract-meta`) to parse deterministic
-  front matter or top-of-file `Key: Value` blocks.
-- Store extracted fields as a doc-level metadata map (JSON) and expose them in
+## Document Metadata
+- Opt-in ingest flag `--extract-meta` parses deterministic Markdown front matter
+  or top-of-file `Key: Value` blocks.
+- Extracted fields are stored as a doc-level metadata map (JSON) and exposed in
   `--json` outputs.
-- RQL should allow exact filters on metadata keys (e.g., `doc.meta.milestone`),
-  with missing keys treated as null.
-- Requires schema versioning and migration support; not part of v0.1.
+- RQL allows exact filters on metadata keys (e.g., `doc.meta.milestone`), with
+  missing keys treated as null.
+- Metadata keys are normalized to lowercase with `_` separators.
 
 ## JSON Output (Stable)
 Top-level fields:
-- `ok`, `schema_version`, `query`, `results`, `context`, `stats`, `warnings`, `error`.
+- `ok`, `schema_version`, `query`, `results`, `context`, `stats`, `warnings`, `error`, `explain`.
 
 Result entries include:
 - `score`, `doc{...}`, `chunk{...}`, `explain{lexical, semantic}`.
@@ -129,11 +137,11 @@ Context entries include:
 - `store_path`
 - `chunk_tokens`, `overlap_tokens`
 - `embedding`, `embedding_dim`
+- `ann_backend` (`lsh`, `hnsw`, `linear`)
 - `ann_bits`, `ann_seed`
 - `bm25_weight`, `vector_weight`
 - `max_limit`
 
 ## Future (Explicitly Out of MVP Scope)
-- Alternative ANN backends (e.g., HNSW).
-- Structure-aware chunking and additional parsers.
+- Additional parsers (PDF deferred).
 - Background daemon/service mode.

@@ -1,6 +1,6 @@
 # ISSUE-2026-02-02-markdown-metadata-extraction
 
-Status: active
+Status: done
 Milestone: Milestone 4 — AI-native Interface
 Owner:
 Created: 2026-02-02

@@ -72,6 +72,12 @@ cargo build --release
 ```
 The binary will be at `target/release/recall`.
 
+### Install (Cargo)
+```
+cargo install --path .
+```
+This installs the `recall` binary into your Cargo bin directory.
+
 ## Quickstart
 ```
 recall init .
@@ -80,19 +86,42 @@ recall search "retry policy" --k 8 --filter "doc.tag = 'docs'" --json
 recall context "how we handle retries" --budget-tokens 1200 --diversity 2
 ```
 
+## Shell Completions and Man Page
+Generate completions:
+```
+recall completions bash > /tmp/recall.bash
+recall completions zsh > /tmp/_recall
+recall completions fish > /tmp/recall.fish
+```
+
+Generate a man page:
+```
+recall man > /tmp/recall.1
+```
+
 ## CLI Commands
 ```
 recall init [path]
-recall add <path...> [--glob ...] [--tag ...] [--source ...] [--mtime-only] [--ignore ...]
+recall add <path...> [--glob ...] [--tag ...] [--source ...] [--mtime-only] [--ignore ...] [--parser auto|plain|markdown|code] [--extract-meta]
 recall rm <doc_id|path...> [--purge]
-recall search <query> [--k N] [--bm25] [--vector] [--filter ...] [--explain] [--json]
-recall query --rql <string|@file> [--explain] [--json]
-recall context <query> [--budget-tokens N] [--diversity N] [--json]
+recall search <query> [--k N] [--bm25] [--vector] [--filter ...|@file] [--lexical-mode fts5|literal] [--snapshot TOKEN] [--explain] [--json|--jsonl]
+recall query --rql <string|@file> [--rql-stdin] [--lexical-mode fts5|literal] [--snapshot TOKEN] [--explain] [--json|--jsonl]
+recall context <query> [--budget-tokens N] [--diversity N] [--format text|json] [--filter ...|@file] [--lexical-mode fts5|literal] [--snapshot TOKEN] [--explain] [--json]
 recall stats [--json]
-recall doctor [--json]
+recall doctor [--json] [--fix]
 recall compact [--json]
 recall export [--out FILE] [--json]
 recall import <FILE> [--json]
+recall completions <shell>
+recall man
+```
+
+## Metadata Extraction (Optional)
+Use `--extract-meta` to parse deterministic header metadata from Markdown files
+and filter on it in RQL:
+```
+recall add ./docs --glob "**/*.md" --extract-meta
+recall search "migration" --filter "doc.meta.status = 'active'" --json
 ```
 
 ## RQL (Recall Query Language)
@@ -121,6 +150,7 @@ LIMIT 8;
 
 ## Filter Expression Language (FEL)
 - `FILTER` fields must be qualified (`doc.*`, `chunk.*`).
+- Metadata keys are available via `doc.meta.<key>` (keys are normalized to lowercase).
 - `LIKE` uses SQL patterns (`%`, `_`).
 - `GLOB` uses glob patterns (`*`, `?`, `**`).
 
@@ -130,7 +160,7 @@ FILTER doc.tag = "docs" AND doc.path GLOB "**/api/**"
 ```
 
 ## JSON Output
-All commands support `--json` with a stable schema (including `schema_version`). Errors are machine-parseable and include `code` and `message`. A `stats.snapshot` token is provided as a reproducibility hint; snapshot paging is planned.
+All commands support `--json` with a stable schema (including `schema_version`). Errors are machine-parseable and include `code` and `message`. A `stats.snapshot` token is provided as a reproducibility hint, and `--snapshot` accepts tokens for deterministic pagination. Use `--jsonl` for streaming large result sets.
 
 ## Export / Import
 Use JSONL for portability:
@@ -153,6 +183,9 @@ of using Recall to develop Recall.
 
 ## Roadmap
 See `ROADMAP.md`.
+
+## Releases
+See `docs/RELEASE.md` for the release checklist and versioning policy.
 
 ## License
 Apache-2.0. See `LICENSE`.

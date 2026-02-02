@@ -1,6 +1,6 @@
 # ISSUE-2026-02-01-schema-versioning-migrations-ann-fts
 
-Status: active
+Status: done
 Milestone: Milestone 2 — Local-first Reliability
 Owner:
 Created: 2026-02-01
