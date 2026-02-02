@@ -151,6 +151,7 @@ rm -rf "$tmpdir"
 - Temporary stores are ideal for volatile context (experiments, branches, PRs).
 - If you need persistence, initialize a store in the repo root instead.
 - Keep `recall.db` out of version control if you do persist it.
+- For v1.0 interface freeze and upgrade guarantees, see `docs/COMPATIBILITY.md`.
 
 ## Document Tracking Workflow (Issues/Progress/History)
 Use Markdown files to track issue state, daily progress, and decisions in a

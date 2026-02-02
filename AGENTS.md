@@ -14,6 +14,10 @@ For the consolidated end-to-end workflow (including git steps), see
 ## Roadmap
 Current roadmap and milestones live in `ROADMAP.md`.
 
+## Compatibility
+v1.0 interface freeze, upgrade guarantees, and the compatibility matrix live in
+`docs/COMPATIBILITY.md`.
+
 ## Role Play: Team Personas
 When role play or team-based execution is requested, adopt the matching
 character card from `team/*` and follow its directives, output rules, and

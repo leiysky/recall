@@ -10,7 +10,7 @@ Target window: 2026-03-15 to 2026-04-30.
 - Freeze CLI, RQL, and JSON schema for 1.0 (no breaking changes after this point).
 - Define the supported upgrade path and migration guarantees for on-disk schema.
 - Publish a compatibility matrix (OS/toolchain + embedding provider expectations).
-  (issue: docs/issues/open/ISSUE-2026-02-02-v1-0-m6-interface-freeze-compatibility.md)
+  (issue: docs/issues/done/ISSUE-2026-02-02-v1-0-m6-interface-freeze-compatibility.md)
 
 ### Milestone 7 — Quality + Performance Baselines
 - Establish a reproducible benchmark dataset or generator and publish baseline numbers.

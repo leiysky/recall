@@ -184,6 +184,10 @@ of using Recall to develop Recall.
 ## Roadmap
 See `ROADMAP.md`.
 
+## Compatibility
+See `docs/COMPATIBILITY.md` for the v1.0 interface freeze, upgrade guarantees,
+and compatibility matrix.
+
 ## Releases
 See `docs/RELEASE.md` for the release checklist and versioning policy.
 

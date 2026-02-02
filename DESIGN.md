@@ -109,6 +109,12 @@ Notes:
 - No network calls unless explicitly configured by the user.
 - On-disk schema versions are stored in a `meta` table and migrated on open.
 
+## Compatibility and Upgrade Guarantees (v1.0)
+- CLI, RQL, and JSON schema are frozen after Milestone 6.
+- Breaking changes require a major version bump and schema version change.
+- Unversioned stores are migrated to schema version 1 on open; newer schemas are rejected.
+- See `docs/COMPATIBILITY.md` for the compatibility matrix and upgrade guidance.
+
 ## Data Model (Logical)
 - `doc`: `id`, `path`, `mtime`, `hash`, `tag`, `source`, `meta`, `deleted`.
 - `chunk`: `id`, `doc_id`, `offset`, `tokens`, `text`, `embedding`, `deleted`.

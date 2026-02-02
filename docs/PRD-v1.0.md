@@ -49,8 +49,8 @@ upgrade guarantees, with a clear target window and release gates.
 - [ ] T2: Define benchmark dataset/generator and baseline metrics
   (Acceptance Criteria: benchmark spec in docs, baseline numbers recorded,
   regression thresholds defined)
-- [ ] T3: Draft interface freeze + compatibility matrix (Acceptance Criteria:
-  published matrix and upgrade guidance documented)
+- [x] T3: Draft interface freeze + compatibility matrix (Acceptance Criteria:
+  published matrix and upgrade guidance documented; see docs/COMPATIBILITY.md)
 - [ ] T4: Define release candidate gate (Acceptance Criteria: v1.0 gate and
   P0/P1 definitions documented in `docs/RELEASE.md`)
 - [ ] T5: Prepare v1.0 change summary (Acceptance Criteria: v1.0 change log

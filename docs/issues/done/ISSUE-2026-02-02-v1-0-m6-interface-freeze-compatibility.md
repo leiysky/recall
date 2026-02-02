@@ -1,6 +1,6 @@
 # ISSUE-2026-02-02-v1-0-m6-interface-freeze-compatibility
 
-Status: open
+Status: done
 Milestone: v1.0 Milestone 6 — Interface Freeze + Compatibility
 Owner: Nexus
 Created: 2026-02-02
@@ -28,6 +28,7 @@ Out of Scope:
 
 Notes:
 - Ensure documentation stays consistent across README, DESIGN, and RELEASE.
+- docs/COMPATIBILITY.md captures the interface freeze, upgrade guarantees, and matrix.
 
 Links:
 - ROADMAP.md
