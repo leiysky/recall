@@ -16,6 +16,8 @@ Target window: 2026-03-15 to 2026-04-30.
 - Establish a reproducible benchmark dataset or generator and publish baseline numbers.
 - Define regression thresholds and add run-to-run determinism checks.
 - Validate upgrades across prior schema versions with explicit migration tests.
+- Refactor SQLite SQL to type-safe builder style.
+  (issue: docs/issues/done/ISSUE-2026-02-02-sqlite-sql-builder-refactor.md)
   (issue: docs/issues/done/ISSUE-2026-02-02-v1-0-m7-quality-performance-baselines.md)
 
 ### Milestone 8 — Release Readiness

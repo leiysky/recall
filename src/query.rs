@@ -20,7 +20,6 @@ use std::time::Instant;
 use anyhow::Result;
 use rusqlite::OptionalExtension;
 use rusqlite::Row;
-use rusqlite::params;
 use rusqlite::params_from_iter;
 use rusqlite::types::Value as SqlValue;
 use serde_json::json;
@@ -49,6 +48,14 @@ use crate::rql::Table;
 use crate::rql::Value;
 use crate::rql::parse_filter;
 use crate::rql::parse_rql;
+use crate::sql::SqlColumn;
+use crate::sql::SqlExpr;
+use crate::sql::SqlFragment;
+use crate::sql::SqlJoin;
+use crate::sql::SqlOrderBy;
+use crate::sql::SqlSelectBuilder;
+use crate::sql::SqlSelectItem;
+use crate::sql::SqlTable;
 use crate::store::Store;
 
 #[derive(Debug, Clone)]
@@ -289,6 +296,95 @@ fn is_chunk_field(name: &str) -> bool {
     normalize_chunk_field(name).is_some()
 }
 
+fn doc_field_to_column(name: &str) -> Option<SqlColumn> {
+    match name {
+        "id" => Some(SqlColumn::DocId),
+        "path" => Some(SqlColumn::DocPath),
+        "mtime" => Some(SqlColumn::DocMtime),
+        "hash" => Some(SqlColumn::DocHash),
+        "tag" => Some(SqlColumn::DocTag),
+        "source" => Some(SqlColumn::DocSource),
+        "meta" => Some(SqlColumn::DocMeta),
+        _ => None,
+    }
+}
+
+fn chunk_field_to_column(name: &str) -> Option<SqlColumn> {
+    match name {
+        "id" => Some(SqlColumn::ChunkId),
+        "doc_id" => Some(SqlColumn::ChunkDocId),
+        "offset" => Some(SqlColumn::ChunkOffset),
+        "tokens" => Some(SqlColumn::ChunkTokens),
+        "text" => Some(SqlColumn::ChunkText),
+        _ => None,
+    }
+}
+
+fn base_doc_filter() -> SqlFragment {
+    SqlFragment::cmp(
+        SqlExpr::column(SqlColumn::DocDeleted),
+        "=",
+        SqlValue::from(0),
+    )
+}
+
+fn base_chunk_doc_filter() -> SqlFragment {
+    let chunk = SqlFragment::cmp(
+        SqlExpr::column(SqlColumn::ChunkDeleted),
+        "=",
+        SqlValue::from(0),
+    );
+    let doc = SqlFragment::cmp(
+        SqlExpr::column(SqlColumn::DocDeleted),
+        "=",
+        SqlValue::from(0),
+    );
+    chunk.and(doc)
+}
+
+fn select_doc_items() -> Vec<SqlSelectItem> {
+    vec![
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::DocId)),
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::DocPath)),
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::DocMtime)),
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::DocHash)),
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::DocTag)),
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::DocSource)),
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::DocMeta)),
+    ]
+}
+
+fn select_chunk_doc_items(include_embedding: bool) -> Vec<SqlSelectItem> {
+    let mut items = vec![
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::ChunkId)),
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::ChunkDocId)),
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::ChunkOffset)),
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::ChunkTokens)),
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::ChunkText)),
+    ];
+    if include_embedding {
+        items.push(SqlSelectItem::new(SqlExpr::column(
+            SqlColumn::ChunkEmbedding,
+        )));
+    }
+    items.extend(vec![
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::DocId)),
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::DocPath)),
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::DocMtime)),
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::DocHash)),
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::DocTag)),
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::DocSource)),
+        SqlSelectItem::new(SqlExpr::column(SqlColumn::DocMeta)),
+    ]);
+    items
+}
+
+fn select_chunk_doc_items_with_bm25() -> Vec<SqlSelectItem> {
+    let mut items = select_chunk_doc_items(false);
+    items.push(SqlSelectItem::new(SqlExpr::raw("bm25(chunk_fts)")).alias("bm25"));
+    items
+}
+
 pub fn search_chunks(
     store: &Store,
     config: &Config,
@@ -323,28 +419,20 @@ pub fn search_chunks_with_inputs(
     } else {
         opts.filter.as_deref().map(parse_filter).transpose()?
     };
-    let (filter_sql, filter_params) = if let Some(expr) = &filter_expr {
+    let filter = if let Some(expr) = &filter_expr {
         filter_to_sql(expr)?
     } else {
-        ("1=1".to_string(), Vec::new())
+        SqlFragment::raw("1=1")
     };
     timings.filter_ms = Some(filter_start.elapsed().as_millis() as i64);
-    let (filter_sql, filter_params) =
-        apply_snapshot_filter(filter_sql, filter_params, &opts.snapshot);
+    let filter = apply_snapshot_filter(filter, &opts.snapshot);
 
     let mut lexical_results = Vec::new();
     let mut lexical_run: Option<LexicalRun> = None;
     if opts.use_lexical {
         let lex_start = Instant::now();
         if let Some(lex_query) = inputs.lexical.clone() {
-            let run = lexical_search(
-                store,
-                &lex_query,
-                &filter_sql,
-                &filter_params,
-                opts.k,
-                opts.lexical_mode,
-            )?;
+            let run = lexical_search(store, &lex_query, &filter, opts.k, opts.lexical_mode)?;
             lexical_results = run.results.clone();
             if let Some(warning) = run.warning.clone() {
                 explain_warnings.push(warning);
@@ -361,14 +449,7 @@ pub fn search_chunks_with_inputs(
     if opts.use_semantic {
         let sem_start = Instant::now();
         if let Some(sem_query) = inputs.semantic.clone() {
-            semantic_results = semantic_search(
-                store,
-                config,
-                &sem_query,
-                &filter_sql,
-                &filter_params,
-                opts.k,
-            )?;
+            semantic_results = semantic_search(store, config, &sem_query, &filter, opts.k)?;
         } else {
             explain_warnings
                 .push("semantic search requested but no semantic query provided".to_string());
@@ -385,7 +466,10 @@ pub fn search_chunks_with_inputs(
     let items = combine_results(config, lexical_results, semantic_results, opts.k);
     timings.combine_ms = Some(combine_start.elapsed().as_millis() as i64);
 
-    let snapshot = opts.snapshot.clone().or_else(|| store.snapshot_token().ok());
+    let snapshot = opts
+        .snapshot
+        .clone()
+        .or_else(|| store.snapshot_token().ok());
     let stats = StatsOut {
         took_ms: started.elapsed().as_millis() as i64,
         total_hits: items.len() as i64,
@@ -426,17 +510,15 @@ pub fn search_chunks_with_inputs(
     })
 }
 
-fn apply_snapshot_filter(
-    filter_sql: String,
-    mut filter_params: Vec<SqlValue>,
-    snapshot: &Option<String>,
-) -> (String, Vec<SqlValue>) {
+fn apply_snapshot_filter(filter: SqlFragment, snapshot: &Option<String>) -> SqlFragment {
     if let Some(token) = snapshot {
-        let sql = format!("({}) AND doc.mtime <= ?", filter_sql);
-        filter_params.push(SqlValue::from(token.clone()));
-        (sql, filter_params)
+        filter.and(SqlFragment::cmp(
+            SqlExpr::column(SqlColumn::DocMtime),
+            "<=",
+            SqlValue::from(token.clone()),
+        ))
     } else {
-        (filter_sql, filter_params)
+        filter
     }
 }
 
@@ -584,25 +666,32 @@ fn run_structured_query(
     let limit = q.limit.unwrap_or(1000);
     let offset = q.offset.unwrap_or(0);
     let filter_start = Instant::now();
-    let (filter_sql, filter_params) = if let Some(expr) = &q.filter {
+    let filter = if let Some(expr) = &q.filter {
         filter_to_sql(expr)?
     } else {
-        ("1=1".to_string(), Vec::new())
+        SqlFragment::raw("1=1")
     };
     timings.filter_ms = Some(filter_start.elapsed().as_millis() as i64);
-    let (filter_sql, filter_params) = apply_snapshot_filter(filter_sql, filter_params, &snapshot);
+    let filter = apply_snapshot_filter(filter, &snapshot);
 
     let mut items = Vec::new();
 
     if q.table == Table::Chunk {
-        let order_sql = order_clause(q, Table::Chunk)?;
-        let sql = format!(
-            "SELECT chunk.id, chunk.doc_id, chunk.offset, chunk.tokens, chunk.text, doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source, doc.meta\n             FROM chunk JOIN doc ON doc.id = chunk.doc_id\n             WHERE chunk.deleted=0 AND doc.deleted=0 AND ({})\n             {}\n             LIMIT ? OFFSET ?",
-            filter_sql, order_sql
-        );
-        let mut params = filter_params.clone();
-        params.push(SqlValue::from(limit as i64));
-        params.push(SqlValue::from(offset as i64));
+        let where_clause = base_chunk_doc_filter().and(filter.clone());
+        let mut builder = SqlSelectBuilder::new(SqlTable::Chunk)
+            .select(select_chunk_doc_items(false))
+            .join(SqlJoin::inner(
+                SqlTable::Doc,
+                SqlColumn::DocId,
+                SqlColumn::ChunkDocId,
+            ))
+            .where_clause(where_clause)
+            .limit(limit)
+            .offset(offset);
+        for order in order_clause(q, Table::Chunk)? {
+            builder = builder.order_by(order);
+        }
+        let (sql, params) = builder.build();
         let mut stmt = store.conn.prepare(&sql)?;
         let rows = stmt.query_map(params_from_iter(params), map_chunk_row)?;
         for row in rows {
@@ -616,14 +705,16 @@ fn run_structured_query(
             });
         }
     } else {
-        let order_sql = order_clause(q, Table::Doc)?;
-        let sql = format!(
-            "SELECT doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source, doc.meta\n             FROM doc\n             WHERE doc.deleted=0 AND ({})\n             {}\n             LIMIT ? OFFSET ?",
-            filter_sql, order_sql
-        );
-        let mut params = filter_params.clone();
-        params.push(SqlValue::from(limit as i64));
-        params.push(SqlValue::from(offset as i64));
+        let where_clause = base_doc_filter().and(filter);
+        let mut builder = SqlSelectBuilder::new(SqlTable::Doc)
+            .select(select_doc_items())
+            .where_clause(where_clause)
+            .limit(limit)
+            .offset(offset);
+        for order in order_clause(q, Table::Doc)? {
+            builder = builder.order_by(order);
+        }
+        let (sql, params) = builder.build();
         let mut stmt = store.conn.prepare(&sql)?;
         let rows = stmt.query_map(params_from_iter(params), |row| {
             Ok(DocRow {
@@ -685,20 +776,35 @@ fn run_structured_query(
 fn lexical_search(
     store: &Store,
     query: &str,
-    filter_sql: &str,
-    filter_params: &[SqlValue],
+    filter: &SqlFragment,
     k: usize,
     mode: LexicalMode,
 ) -> Result<LexicalRun> {
     let run = |query: &str| -> Result<Vec<ScoredItem>> {
-        let sql = format!(
-            "SELECT chunk.id, chunk.doc_id, chunk.offset, chunk.tokens, chunk.text,\n                doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source, doc.meta,\n                bm25(chunk_fts) as bm25\n         FROM chunk_fts\n         JOIN chunk ON chunk_fts.rowid = chunk.rowid\n         JOIN doc ON doc.id = chunk.doc_id\n         WHERE chunk.deleted=0 AND doc.deleted=0 AND ({}) AND chunk_fts MATCH ?\n         ORDER BY bm25 ASC, doc.path ASC, chunk.offset ASC, chunk.id ASC\n         LIMIT ?",
-            filter_sql
+        let fts_clause = SqlFragment::raw_with_params(
+            "chunk_fts MATCH ?",
+            vec![SqlValue::from(query.to_string())],
         );
-
-        let mut params: Vec<SqlValue> = filter_params.to_vec();
-        params.push(SqlValue::from(query.to_string()));
-        params.push(SqlValue::from(k as i64));
+        let where_clause = base_chunk_doc_filter().and(filter.clone()).and(fts_clause);
+        let (sql, params) = SqlSelectBuilder::new(SqlTable::ChunkFts)
+            .select(select_chunk_doc_items_with_bm25())
+            .join(SqlJoin::inner(
+                SqlTable::Chunk,
+                SqlColumn::ChunkFtsRowid,
+                SqlColumn::ChunkRowid,
+            ))
+            .join(SqlJoin::inner(
+                SqlTable::Doc,
+                SqlColumn::DocId,
+                SqlColumn::ChunkDocId,
+            ))
+            .where_clause(where_clause)
+            .order_by(SqlOrderBy::asc(SqlExpr::alias("bm25")))
+            .order_by(SqlOrderBy::asc(SqlExpr::column(SqlColumn::DocPath)))
+            .order_by(SqlOrderBy::asc(SqlExpr::column(SqlColumn::ChunkOffset)))
+            .order_by(SqlOrderBy::asc(SqlExpr::column(SqlColumn::ChunkId)))
+            .limit(k)
+            .build();
 
         let mut stmt = store.conn.prepare(&sql)?;
         let rows = stmt.query_map(params_from_iter(params), |row| {
@@ -736,7 +842,9 @@ fn lexical_search(
         if query_to_run.is_empty() {
             return Ok(LexicalRun {
                 results: Vec::new(),
-                warning: Some("lexical query sanitized to empty; skipping lexical search".to_string()),
+                warning: Some(
+                    "lexical query sanitized to empty; skipping lexical search".to_string(),
+                ),
                 original,
                 sanitized,
             });
@@ -813,31 +921,27 @@ fn semantic_search(
     store: &Store,
     config: &Config,
     query: &str,
-    filter_sql: &str,
-    filter_params: &[SqlValue],
+    filter: &SqlFragment,
     k: usize,
 ) -> Result<Vec<ScoredItem>> {
     let embedder = HashEmbedder::new(config.embedding_dim);
     let query_vec = embedder.embed(query);
     let backend = config.ann_backend.as_str();
     if backend.eq_ignore_ascii_case("hnsw") {
-        if let Ok(results) =
-            semantic_search_hnsw(store, config, &query_vec, filter_sql, filter_params, k)
+        if let Ok(results) = semantic_search_hnsw(store, config, &query_vec, filter, k)
             && results.len() >= k
         {
             return Ok(results);
         }
         if config.ann_bits > 0
-            && let Ok(results) =
-                semantic_search_lsh(store, config, &query_vec, filter_sql, filter_params, k)
+            && let Ok(results) = semantic_search_lsh(store, config, &query_vec, filter, k)
             && results.len() >= k
         {
             return Ok(results);
         }
     } else if backend.eq_ignore_ascii_case("lsh") || backend.is_empty() {
         if config.ann_bits > 0
-            && let Ok(results) =
-                semantic_search_lsh(store, config, &query_vec, filter_sql, filter_params, k)
+            && let Ok(results) = semantic_search_lsh(store, config, &query_vec, filter, k)
             && results.len() >= k
         {
             return Ok(results);
@@ -846,38 +950,42 @@ fn semantic_search(
         // fall through to linear
     } else {
         if config.ann_bits > 0
-            && let Ok(results) =
-                semantic_search_lsh(store, config, &query_vec, filter_sql, filter_params, k)
+            && let Ok(results) = semantic_search_lsh(store, config, &query_vec, filter, k)
             && results.len() >= k
         {
             return Ok(results);
         }
     }
 
-    semantic_search_linear(store, &query_vec, filter_sql, filter_params, k)
+    semantic_search_linear(store, &query_vec, filter, k)
 }
 
 fn semantic_search_lsh(
     store: &Store,
     config: &Config,
     query_vec: &[f32],
-    filter_sql: &str,
-    filter_params: &[SqlValue],
+    filter: &SqlFragment,
     k: usize,
 ) -> Result<Vec<ScoredItem>> {
     let sig = ann::signature(query_vec, config.ann_bits, config.ann_seed);
     let sigs = ann::neighbor_signatures(sig, config.ann_bits);
-
-    let placeholders = vec!["?"; sigs.len()].join(", ");
-    let sql = format!(
-        "SELECT chunk.id, chunk.doc_id, chunk.offset, chunk.tokens, chunk.text, chunk.embedding,\n                doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source, doc.meta\n         FROM ann_lsh\n         JOIN chunk ON ann_lsh.chunk_id = chunk.id\n         JOIN doc ON doc.id = chunk.doc_id\n         WHERE chunk.deleted=0 AND doc.deleted=0 AND ({}) AND ann_lsh.signature IN ({})",
-        filter_sql, placeholders
-    );
-
-    let mut params: Vec<SqlValue> = filter_params.to_vec();
-    for s in sigs {
-        params.push(SqlValue::from(s as i64));
-    }
+    let sig_values: Vec<SqlValue> = sigs.into_iter().map(|s| SqlValue::from(s as i64)).collect();
+    let sig_clause = SqlFragment::in_list(SqlExpr::column(SqlColumn::AnnLshSignature), sig_values)?;
+    let where_clause = base_chunk_doc_filter().and(filter.clone()).and(sig_clause);
+    let (sql, params) = SqlSelectBuilder::new(SqlTable::AnnLsh)
+        .select(select_chunk_doc_items(true))
+        .join(SqlJoin::inner(
+            SqlTable::Chunk,
+            SqlColumn::AnnLshChunkId,
+            SqlColumn::ChunkId,
+        ))
+        .join(SqlJoin::inner(
+            SqlTable::Doc,
+            SqlColumn::DocId,
+            SqlColumn::ChunkDocId,
+        ))
+        .where_clause(where_clause)
+        .build();
 
     let mut stmt = store.conn.prepare(&sql)?;
     let rows = stmt.query_map(params_from_iter(params), |row| {
@@ -907,8 +1015,7 @@ fn semantic_search_hnsw(
     store: &Store,
     config: &Config,
     query_vec: &[f32],
-    filter_sql: &str,
-    filter_params: &[SqlValue],
+    filter: &SqlFragment,
     k: usize,
 ) -> Result<Vec<ScoredItem>> {
     if config.ann_bits == 0 {
@@ -916,16 +1023,16 @@ fn semantic_search_hnsw(
     }
     let sig = ann::signature(query_vec, config.ann_bits, config.ann_seed);
     let sigs = ann::neighbor_signatures(sig, config.ann_bits);
-    let placeholders = vec!["?"; sigs.len()].join(", ");
-    let seed_limit = usize::max(32, k.saturating_mul(4)) as i64;
-    let sql = format!(
-        "SELECT chunk_id FROM ann_lsh WHERE signature IN ({}) LIMIT {}",
-        placeholders, seed_limit
-    );
-    let mut params: Vec<SqlValue> = Vec::new();
-    for s in sigs {
-        params.push(SqlValue::from(s as i64));
-    }
+    let sig_values: Vec<SqlValue> = sigs.into_iter().map(|s| SqlValue::from(s as i64)).collect();
+    let sig_clause = SqlFragment::in_list(SqlExpr::column(SqlColumn::AnnLshSignature), sig_values)?;
+    let seed_limit = usize::max(32, k.saturating_mul(4));
+    let (sql, params) = SqlSelectBuilder::new(SqlTable::AnnLsh)
+        .select(vec![SqlSelectItem::new(SqlExpr::column(
+            SqlColumn::AnnLshChunkId,
+        ))])
+        .where_clause(sig_clause)
+        .limit(seed_limit)
+        .build();
     let mut stmt = store.conn.prepare(&sql)?;
     let rows = stmt.query_map(params_from_iter(params), |row| row.get::<_, String>(0))?;
     let mut candidates: BTreeSet<String> = BTreeSet::new();
@@ -940,13 +1047,19 @@ fn semantic_search_hnsw(
     }
 
     for id in &seeds {
+        let (sql, params) = SqlSelectBuilder::new(SqlTable::AnnHnsw)
+            .select(vec![SqlSelectItem::new(SqlExpr::column(
+                SqlColumn::AnnHnswNeighbors,
+            ))])
+            .where_clause(SqlFragment::cmp(
+                SqlExpr::column(SqlColumn::AnnHnswChunkId),
+                "=",
+                SqlValue::from(id.clone()),
+            ))
+            .build();
         let neighbors: Option<String> = store
             .conn
-            .query_row(
-                "SELECT neighbors FROM ann_hnsw WHERE chunk_id = ?1",
-                params![id],
-                |row| row.get(0),
-            )
+            .query_row(&sql, params_from_iter(params), |row| row.get(0))
             .optional()?;
         if let Some(raw) = neighbors {
             if let Ok(list) = serde_json::from_str::<Vec<String>>(&raw) {
@@ -961,15 +1074,18 @@ fn semantic_search_hnsw(
         return Ok(Vec::new());
     }
 
-    let placeholders = vec!["?"; candidates.len()].join(", ");
-    let sql = format!(
-        "SELECT chunk.id, chunk.doc_id, chunk.offset, chunk.tokens, chunk.text, chunk.embedding,\n                doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source, doc.meta\n         FROM chunk\n         JOIN doc ON doc.id = chunk.doc_id\n         WHERE chunk.deleted=0 AND doc.deleted=0 AND ({}) AND chunk.id IN ({})",
-        filter_sql, placeholders
-    );
-    let mut params: Vec<SqlValue> = filter_params.to_vec();
-    for id in candidates {
-        params.push(SqlValue::from(id));
-    }
+    let candidate_values: Vec<SqlValue> = candidates.into_iter().map(SqlValue::from).collect();
+    let id_clause = SqlFragment::in_list(SqlExpr::column(SqlColumn::ChunkId), candidate_values)?;
+    let where_clause = base_chunk_doc_filter().and(filter.clone()).and(id_clause);
+    let (sql, params) = SqlSelectBuilder::new(SqlTable::Chunk)
+        .select(select_chunk_doc_items(true))
+        .join(SqlJoin::inner(
+            SqlTable::Doc,
+            SqlColumn::DocId,
+            SqlColumn::ChunkDocId,
+        ))
+        .where_clause(where_clause)
+        .build();
     let mut stmt = store.conn.prepare(&sql)?;
     let rows = stmt.query_map(params_from_iter(params), |row| {
         let (chunk, doc) = map_chunk_row_with_embedding(row)?;
@@ -997,16 +1113,21 @@ fn semantic_search_hnsw(
 fn semantic_search_linear(
     store: &Store,
     query_vec: &[f32],
-    filter_sql: &str,
-    filter_params: &[SqlValue],
+    filter: &SqlFragment,
     k: usize,
 ) -> Result<Vec<ScoredItem>> {
-    let sql = format!(
-        "SELECT chunk.id, chunk.doc_id, chunk.offset, chunk.tokens, chunk.text, chunk.embedding,\n                doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source, doc.meta\n         FROM chunk\n         JOIN doc ON doc.id = chunk.doc_id\n         WHERE chunk.deleted=0 AND doc.deleted=0 AND ({})",
-        filter_sql
-    );
+    let where_clause = base_chunk_doc_filter().and(filter.clone());
+    let (sql, params) = SqlSelectBuilder::new(SqlTable::Chunk)
+        .select(select_chunk_doc_items(true))
+        .join(SqlJoin::inner(
+            SqlTable::Doc,
+            SqlColumn::DocId,
+            SqlColumn::ChunkDocId,
+        ))
+        .where_clause(where_clause)
+        .build();
     let mut stmt = store.conn.prepare(&sql)?;
-    let rows = stmt.query_map(params_from_iter(filter_params.to_vec()), |row| {
+    let rows = stmt.query_map(params_from_iter(params), |row| {
         let (chunk, doc) = map_chunk_row_with_embedding(row)?;
         Ok((chunk, doc))
     })?;
@@ -1155,52 +1276,26 @@ fn map_chunk_row_with_embedding(row: &Row) -> rusqlite::Result<(ChunkRowWithEmbe
     Ok((chunk, doc))
 }
 
-fn filter_to_sql(expr: &FilterExpr) -> Result<(String, Vec<SqlValue>)> {
+fn filter_to_sql(expr: &FilterExpr) -> Result<SqlFragment> {
     match expr {
-        FilterExpr::And(a, b) => {
-            let (sa, mut pa) = filter_to_sql(a)?;
-            let (sb, mut pb) = filter_to_sql(b)?;
-            pa.append(&mut pb);
-            Ok((format!("({}) AND ({})", sa, sb), pa))
-        }
-        FilterExpr::Or(a, b) => {
-            let (sa, mut pa) = filter_to_sql(a)?;
-            let (sb, mut pb) = filter_to_sql(b)?;
-            pa.append(&mut pb);
-            Ok((format!("({}) OR ({})", sa, sb), pa))
-        }
-        FilterExpr::Not(inner) => {
-            let (s, p) = filter_to_sql(inner)?;
-            Ok((format!("NOT ({})", s), p))
-        }
+        FilterExpr::And(a, b) => Ok(filter_to_sql(a)?.and(filter_to_sql(b)?)),
+        FilterExpr::Or(a, b) => Ok(filter_to_sql(a)?.or(filter_to_sql(b)?)),
+        FilterExpr::Not(inner) => Ok(filter_to_sql(inner)?.not()),
         FilterExpr::Predicate(pred) => predicate_to_sql(pred),
     }
 }
 
-fn predicate_to_sql(pred: &Predicate) -> Result<(String, Vec<SqlValue>)> {
+fn predicate_to_sql(pred: &Predicate) -> Result<SqlFragment> {
     match pred {
         Predicate::Cmp { field, op, value } => {
-            let col = field_to_sql(field)?;
-            let op_str = match op {
-                CmpOp::Eq => "=",
-                CmpOp::Ne => "!=",
-                CmpOp::Lt => "<",
-                CmpOp::Lte => "<=",
-                CmpOp::Gt => ">",
-                CmpOp::Gte => ">=",
-                CmpOp::Like => "LIKE",
-                CmpOp::Glob => "GLOB",
-            };
-            Ok((format!("{} {} ?", col, op_str), vec![value_to_sql(value)]))
+            let expr = field_to_expr(field)?;
+            let op_str = cmp_op_to_sql(op);
+            Ok(SqlFragment::cmp(expr, op_str, value_to_sql(value)))
         }
         Predicate::In { field, values } => {
-            let col = field_to_sql(field)?;
-            let placeholders = vec!["?"; values.len()].join(", ");
-            let mut params = Vec::new();
-            for v in values {
-                params.push(value_to_sql(v));
-            }
-            Ok((format!("{} IN ({})", col, placeholders), params))
+            let expr = field_to_expr(field)?;
+            let params = values.iter().map(value_to_sql).collect();
+            SqlFragment::in_list(expr, params)
         }
     }
 }
@@ -1212,66 +1307,92 @@ fn value_to_sql(value: &Value) -> SqlValue {
     }
 }
 
-fn field_to_sql(field: &FieldRef) -> Result<String> {
+fn cmp_op_to_sql(op: &CmpOp) -> &'static str {
+    match op {
+        CmpOp::Eq => "=",
+        CmpOp::Ne => "!=",
+        CmpOp::Lt => "<",
+        CmpOp::Lte => "<=",
+        CmpOp::Gt => ">",
+        CmpOp::Gte => ">=",
+        CmpOp::Like => "LIKE",
+        CmpOp::Glob => "GLOB",
+    }
+}
+
+fn field_to_expr(field: &FieldRef) -> Result<SqlExpr> {
     let (table, name) = match &field.table {
-        Some(Table::Doc) => ("doc", field.name.as_str()),
-        Some(Table::Chunk) => ("chunk", field.name.as_str()),
+        Some(Table::Doc) => (Table::Doc, field.name.as_str()),
+        Some(Table::Chunk) => (Table::Chunk, field.name.as_str()),
         None => anyhow::bail!("field must be qualified: {}", field.name),
     };
 
-    if table == "doc" {
-        if let Some(key) = name.strip_prefix("meta.") {
-            let key = key.trim();
-            if key.is_empty() {
-                anyhow::bail!("metadata key required after doc.meta");
+    match table {
+        Table::Doc => {
+            if let Some(key) = name.strip_prefix("meta.") {
+                let key = key.trim();
+                if key.is_empty() {
+                    anyhow::bail!("metadata key required after doc.meta");
+                }
+                if !key
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+                {
+                    anyhow::bail!("metadata key contains unsupported characters: {key}");
+                }
+                return Ok(SqlExpr::json_extract(SqlColumn::DocMeta, key.to_string()));
             }
-            if !key
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-            {
-                anyhow::bail!("metadata key contains unsupported characters: {key}");
+            if let Some(column) = doc_field_to_column(name) {
+                return Ok(SqlExpr::column(column));
             }
-            return Ok(format!("json_extract(doc.meta, '$.{}')", key));
+            anyhow::bail!("unknown doc field: {name}")
         }
-        if !is_doc_field(name) {
-            anyhow::bail!("unknown doc field: {name}");
+        Table::Chunk => {
+            if let Some(column) = chunk_field_to_column(name) {
+                return Ok(SqlExpr::column(column));
+            }
+            anyhow::bail!("unknown chunk field: {name}")
         }
     }
-    if table == "chunk" && !is_chunk_field(name) {
-        anyhow::bail!("unknown chunk field: {name}");
-    }
-
-    Ok(format!("{}.{}", table, name))
 }
 
-fn field_to_sql_for_table(field: &FieldRef, table: Table) -> Result<String> {
+fn field_to_expr_for_table(field: &FieldRef, table: Table) -> Result<SqlExpr> {
     let table = field.table.clone().unwrap_or(table);
     let resolved = FieldRef {
         table: Some(table),
         name: field.name.clone(),
     };
-    field_to_sql(&resolved)
+    field_to_expr(&resolved)
 }
 
-fn order_clause(q: &RqlQuery, table: Table) -> Result<String> {
+fn order_clause(q: &RqlQuery, table: Table) -> Result<Vec<SqlOrderBy>> {
     let tie_break = match table {
-        Table::Doc => "doc.path ASC, doc.id ASC",
-        Table::Chunk => "doc.path ASC, chunk.offset ASC, chunk.id ASC",
+        Table::Doc => vec![
+            SqlOrderBy::asc(SqlExpr::column(SqlColumn::DocPath)),
+            SqlOrderBy::asc(SqlExpr::column(SqlColumn::DocId)),
+        ],
+        Table::Chunk => vec![
+            SqlOrderBy::asc(SqlExpr::column(SqlColumn::DocPath)),
+            SqlOrderBy::asc(SqlExpr::column(SqlColumn::ChunkOffset)),
+            SqlOrderBy::asc(SqlExpr::column(SqlColumn::ChunkId)),
+        ],
     };
-    let default_order = format!("ORDER BY {tie_break}");
 
     let Some((order_by, dir)) = &q.order_by else {
-        return Ok(default_order.to_string());
-    };
-    let dir_sql = match dir {
-        OrderDir::Asc => "ASC",
-        OrderDir::Desc => "DESC",
+        return Ok(tie_break);
     };
     match order_by {
-        OrderBy::Score => Ok(default_order),
+        OrderBy::Score => Ok(tie_break),
         OrderBy::Field(field) => {
-            let col = field_to_sql_for_table(field, table)?;
-            Ok(format!("ORDER BY {} {}, {}", col, dir_sql, tie_break))
+            let mut order = Vec::new();
+            let expr = field_to_expr_for_table(field, table)?;
+            let entry = match dir {
+                OrderDir::Asc => SqlOrderBy::asc(expr),
+                OrderDir::Desc => SqlOrderBy::desc(expr),
+            };
+            order.push(entry);
+            order.extend(tie_break);
+            Ok(order)
         }
     }
 }
@@ -1419,8 +1540,8 @@ mod tests {
     #[test]
     fn filter_allows_doc_meta_key() {
         let expr = parse_filter("doc.meta.status = 'open'").expect("parse filter");
-        let (sql, params) = filter_to_sql(&expr).expect("filter to sql");
-        assert!(sql.contains("json_extract(doc.meta"));
-        assert_eq!(params.len(), 1);
+        let fragment = filter_to_sql(&expr).expect("filter to sql");
+        assert!(fragment.sql.contains("json_extract(doc.meta"));
+        assert_eq!(fragment.params.len(), 1);
     }
 }

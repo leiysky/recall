@@ -87,9 +87,9 @@ pub fn export_store(store: &Store, mut writer: impl Write) -> Result<TransferSta
     let mut docs = 0usize;
     let mut chunks = 0usize;
 
-    let mut stmt = store
-        .conn
-        .prepare("SELECT id, path, mtime, size, hash, tag, source, meta FROM doc WHERE deleted=0")?;
+    let mut stmt = store.conn.prepare(
+        "SELECT id, path, mtime, size, hash, tag, source, meta FROM doc WHERE deleted=0",
+    )?;
     let rows = stmt.query_map([], |row| {
         Ok(ExportDoc {
             r#type: "doc".to_string(),

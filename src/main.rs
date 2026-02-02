@@ -22,6 +22,7 @@ mod model;
 mod output;
 mod query;
 mod rql;
+mod sql;
 mod store;
 mod transfer;
 
@@ -33,8 +34,8 @@ use anyhow::Context as _;
 use anyhow::Result;
 use clap::CommandFactory;
 use clap::Parser;
-use clap_complete::generate;
 use clap_complete::Shell;
+use clap_complete::generate;
 use clap_mangen::Man;
 use serde_json::json;
 use time::OffsetDateTime;
@@ -91,20 +92,18 @@ fn run() -> Result<()> {
             args.json || args.jsonl,
         ),
         Commands::Rm(args) => handle_result(cmd_rm(args.targets, args.purge, args.json), args.json),
-        Commands::Query(args) => {
-            handle_result(
-                cmd_query(
-                    args.rql,
-                    args.rql_stdin,
-                    args.json,
-                    args.explain,
-                    args.lexical_mode,
-                    args.snapshot,
-                    args.jsonl,
-                ),
-                args.json || args.jsonl,
-            )
-        }
+        Commands::Query(args) => handle_result(
+            cmd_query(
+                args.rql,
+                args.rql_stdin,
+                args.json,
+                args.explain,
+                args.lexical_mode,
+                args.snapshot,
+                args.jsonl,
+            ),
+            args.json || args.jsonl,
+        ),
         Commands::Context(args) => handle_result(
             cmd_context(
                 args.query,
@@ -781,7 +780,10 @@ fn print_jsonl_response(resp: JsonResponse) -> Result<()> {
     if let Some(error) = resp.error {
         meta.insert("error".into(), json!(error));
     }
-    println!("{}", serde_json::to_string(&serde_json::Value::Object(meta))?);
+    println!(
+        "{}",
+        serde_json::to_string(&serde_json::Value::Object(meta))?
+    );
 
     if let Some(results) = resp.results {
         for item in results {

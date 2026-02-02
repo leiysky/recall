@@ -299,9 +299,9 @@ fn resolve_parser(path: &Path, hint: ParserHint) -> ParserHint {
         .to_lowercase();
     match ext.as_str() {
         "md" | "markdown" | "mdx" => ParserHint::Markdown,
-        "rs" | "py" | "js" | "ts" | "go" | "java" | "c" | "cc" | "cpp" | "h" | "hpp"
-        | "cs" | "rb" | "php" | "swift" | "kt" | "scala" | "sh" | "bash" | "zsh"
-        | "toml" | "yaml" | "yml" | "json" => ParserHint::Code,
+        "rs" | "py" | "js" | "ts" | "go" | "java" | "c" | "cc" | "cpp" | "h" | "hpp" | "cs"
+        | "rb" | "php" | "swift" | "kt" | "scala" | "sh" | "bash" | "zsh" | "toml" | "yaml"
+        | "yml" | "json" => ParserHint::Code,
         _ => ParserHint::Plain,
     }
 }

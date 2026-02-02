@@ -305,13 +305,7 @@ fn structured_query_order_by_tiebreaks() {
 
     let mut cmd = recall_cmd();
     cmd.args([
-        "add",
-        "docs",
-        "--glob",
-        "**/*.txt",
-        "--tag",
-        "docs",
-        "--json",
+        "add", "docs", "--glob", "**/*.txt", "--tag", "docs", "--json",
     ]);
     let add_json = run_json(&mut cmd, root);
     assert_schema(&schema, &add_json);

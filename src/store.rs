@@ -146,10 +146,12 @@ impl Store {
     fn open_connection(path: &Path, mode: StoreMode) -> Result<Connection> {
         let flags = match mode {
             StoreMode::ReadOnly => OpenFlags::SQLITE_OPEN_READ_ONLY,
-            StoreMode::ReadWrite => OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
+            StoreMode::ReadWrite => {
+                OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE
+            }
         };
-        let conn =
-            Connection::open_with_flags(path, flags).with_context(|| format!("open {}", path.display()))?;
+        let conn = Connection::open_with_flags(path, flags)
+            .with_context(|| format!("open {}", path.display()))?;
         conn.busy_timeout(Duration::from_millis(5000))
             .context("set busy timeout")?;
         Ok(conn)
@@ -158,9 +160,7 @@ impl Store {
     fn apply_pragmas(conn: &Connection, mode: StoreMode) -> Result<()> {
         let mut batch = String::from("PRAGMA foreign_keys=ON;");
         if matches!(mode, StoreMode::ReadWrite) {
-            batch = format!(
-                "PRAGMA journal_mode=DELETE;\nPRAGMA synchronous=NORMAL;\n{batch}"
-            );
+            batch = format!("PRAGMA journal_mode=DELETE;\nPRAGMA synchronous=NORMAL;\n{batch}");
         }
         conn.execute_batch(&batch).context("apply pragmas")?;
         Ok(())
@@ -178,9 +178,7 @@ impl Store {
         loop {
             let locked = match mode {
                 StoreMode::ReadOnly => file.try_lock_shared().map_err(|err| err.to_string()),
-                StoreMode::ReadWrite => file
-                    .try_lock_exclusive()
-                    .map_err(|err| err.to_string()),
+                StoreMode::ReadWrite => file.try_lock_exclusive().map_err(|err| err.to_string()),
             };
             match locked {
                 Ok(()) => return Ok(file),
@@ -254,9 +252,7 @@ impl Store {
             )
             .optional()
             .context("read schema_version")?;
-        Ok(value
-            .and_then(|v| v.parse::<i64>().ok())
-            .unwrap_or(0))
+        Ok(value.and_then(|v| v.parse::<i64>().ok()).unwrap_or(0))
     }
 
     fn ensure_doc_meta_column(conn: &Connection) -> Result<()> {
@@ -409,7 +405,9 @@ impl Store {
     }
 
     pub fn rebuild_ann_lsh(&self, config: &Config) -> Result<usize> {
-        self.conn.execute("DELETE FROM ann_lsh", []).context("clear ann")?;
+        self.conn
+            .execute("DELETE FROM ann_lsh", [])
+            .context("clear ann")?;
         let mut stmt = self
             .conn
             .prepare("SELECT id, doc_id, embedding FROM chunk WHERE deleted=0")?;
@@ -439,10 +437,10 @@ impl Store {
 
     fn rebuild_ann_hnsw_conn(conn: &Connection) -> Result<usize> {
         const HNSW_M: usize = 8;
-        conn.execute("DELETE FROM ann_hnsw", []).context("clear ann_hnsw")?;
-        let mut stmt = conn.prepare(
-            "SELECT id, embedding FROM chunk WHERE deleted=0 ORDER BY id ASC",
-        )?;
+        conn.execute("DELETE FROM ann_hnsw", [])
+            .context("clear ann_hnsw")?;
+        let mut stmt =
+            conn.prepare("SELECT id, embedding FROM chunk WHERE deleted=0 ORDER BY id ASC")?;
         let rows = stmt.query_map([], |row| {
             let id: String = row.get(0)?;
             let embedding: Vec<u8> = row.get(1)?;
@@ -533,9 +531,10 @@ impl Store {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use tempfile::tempdir;
     use rusqlite::Connection as SqlConnection;
+    use tempfile::tempdir;
+
+    use super::*;
 
     #[test]
     fn shared_lock_allows_multiple_readers() -> Result<()> {
