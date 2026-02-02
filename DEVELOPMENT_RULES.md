@@ -66,3 +66,7 @@ Purpose: keep Recall consistent with the design goals and agent-first workflow.
 ## Documentation Hygiene
 - **MUST** update `DESIGN.md` and `AGENTS.md` when behavior changes.
 - **SHOULD** update `ROADMAP.md` if milestones or scope change.
+
+## Workflow
+- **MUST** follow `WORKFLOWS.md` → "Complete Workflow (Merged Summary)" by default,
+  unless the user explicitly opts out.

@@ -12,6 +12,7 @@ Status: Principles-aligned plan (post-MVP)
 - Golden tests with `insta` + JSON schema validation.
 - Hardened lexical search for FTS5 syntax errors with sanitization + warnings, plus tests.
 - Export/import with snapshot hints in JSON stats.
+- Enforced default git workflow in DEVELOPMENT_RULES.
 
 ## Next Milestones (Ordered by principles)
 
