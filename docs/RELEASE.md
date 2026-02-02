@@ -18,12 +18,17 @@ Sign-off criteria:
 - Benchmarks within thresholds (see `docs/benchmarks/README.md`).
 - Compatibility matrix and upgrade guidance up to date (`docs/COMPATIBILITY.md`).
 - Release notes prepared (`docs/history/changes/CHANGE-2026-02-02-v1-0-release.md`).
+- Verify core principles:
+  - Strict filters are exact and enforced (no semantic inference).
+  - Context budget/provenance guarantees hold.
+  - Local-first/no-network behavior is intact.
 
 Severity definitions:
 - P0: data loss/corruption, security issue, crash in core flows, failed migrations,
-  or nondeterministic search/query/context outputs.
+  nondeterministic search/query/context outputs, or strict FILTER exactness violations.
 - P1: CLI/RQL/JSON compatibility regression, performance outside thresholds,
-  incorrect results in common flows, or benchmark regressions beyond limits.
+  incorrect results in common flows, benchmark regressions beyond limits, or
+  context budget/provenance violations.
 
 ## Release Checklist
 - [ ] Update `Cargo.toml` version.

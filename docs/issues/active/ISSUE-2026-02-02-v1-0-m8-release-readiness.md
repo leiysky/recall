@@ -29,6 +29,7 @@ Notes:
 - Ensure release notes reference compatibility matrix and baselines.
 - RC gate definitions live in docs/RELEASE.md; release notes draft in docs/history/changes/CHANGE-2026-02-02-v1-0-release.md.
 - Release tag is pending review and approval.
+- Core principle severity mapping: strict FILTER exactness is P0; context budget/provenance is P1.
 
 Links:
 - ROADMAP.md

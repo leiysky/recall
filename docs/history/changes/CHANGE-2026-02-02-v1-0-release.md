@@ -6,13 +6,14 @@ Milestone: v1.0
 Summary:
 - Interface freeze for CLI/RQL/JSON schema and published compatibility matrix.
 - Benchmark dataset, baselines, regression thresholds, and determinism checks.
-- Release readiness checklist with RC gate definitions.
+- Release readiness checklist with RC gate definitions (including core principles).
 - Release tag: pending review
 
 User impact:
 - Stable interfaces for v1.0 tooling and agent integrations.
 - Reproducible performance baselines and deterministic outputs.
 - Clear upgrade guidance and compatibility expectations.
+- Strict filters remain exact, and context budget/provenance guarantees remain enforced.
 
 Migration:
 - Automatic migration from unversioned stores to schema version 1 on open.
