@@ -193,7 +193,8 @@ See `docs/COMPATIBILITY.md` for the v1.0 interface freeze, upgrade guarantees,
 and compatibility matrix.
 
 ## Releases
-See `docs/RELEASE.md` for the release checklist and versioning policy.
+See `docs/RELEASE.md` for the release checklist and versioning policy. v1.0
+release notes live in `docs/history/changes/CHANGE-2026-02-02-v1-0-release.md`.
 
 ## License
 Apache-2.0. See `LICENSE`.

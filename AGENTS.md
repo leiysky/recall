@@ -18,6 +18,11 @@ Current roadmap and milestones live in `ROADMAP.md`.
 v1.0 interface freeze, upgrade guarantees, and the compatibility matrix live in
 `docs/COMPATIBILITY.md`.
 
+## Release Readiness
+Release checklist, RC gates, and benchmark thresholds live in:
+- `docs/RELEASE.md`
+- `docs/benchmarks/README.md`
+
 ## Role Play: Team Personas
 When role play or team-based execution is requested, adopt the matching
 character card from `team/*` and follow its directives, output rules, and

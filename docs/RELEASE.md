@@ -11,12 +11,27 @@
   - A note in `docs/history/changes/`.
 - JSON schema version changes must be documented and migrated in tooling.
 
+## Release Candidate Gate (v1.0)
+Sign-off criteria:
+- Zero open P0/P1 issues.
+- All tests pass (`./x test`, determinism, and migration tests).
+- Benchmarks within thresholds (see `docs/benchmarks/README.md`).
+- Compatibility matrix and upgrade guidance up to date (`docs/COMPATIBILITY.md`).
+- Release notes prepared (`docs/history/changes/CHANGE-2026-02-02-v1-0-release.md`).
+
+Severity definitions:
+- P0: data loss/corruption, security issue, crash in core flows, failed migrations,
+  or nondeterministic search/query/context outputs.
+- P1: CLI/RQL/JSON compatibility regression, performance outside thresholds,
+  incorrect results in common flows, or benchmark regressions beyond limits.
+
 ## Release Checklist
 - [ ] Update `Cargo.toml` version.
 - [ ] Run `./x fmt` and `./x clippy -- -D warnings`.
 - [ ] Run `./x test` and review snapshot updates.
 - [ ] Run core flows:
   - `recall init` → `recall add` → `recall search` → `recall context`.
+- [ ] Run `scripts/bench_run.py` and compare against baseline thresholds.
 - [ ] Verify migrations on an older store (schema version bump).
 - [ ] Update `docs/history/changes/` for user-visible changes.
 - [ ] Update `ROADMAP.md` milestones and issue status.

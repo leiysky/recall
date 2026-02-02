@@ -51,9 +51,9 @@ upgrade guarantees, with a clear target window and release gates.
   regression thresholds defined; see docs/benchmarks/README.md)
 - [x] T3: Draft interface freeze + compatibility matrix (Acceptance Criteria:
   published matrix and upgrade guidance documented; see docs/COMPATIBILITY.md)
-- [ ] T4: Define release candidate gate (Acceptance Criteria: v1.0 gate and
+- [x] T4: Define release candidate gate (Acceptance Criteria: v1.0 gate and
   P0/P1 definitions documented in `docs/RELEASE.md`)
-- [ ] T5: Prepare v1.0 change summary (Acceptance Criteria: v1.0 change log
+- [x] T5: Prepare v1.0 change summary (Acceptance Criteria: v1.0 change log
   in `docs/history/changes/`)
 - [ ] T6: Execute release checklist and tag v1.0 (Acceptance Criteria:
   checklist complete and tag recorded)

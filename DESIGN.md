@@ -115,6 +115,10 @@ Notes:
 - Unversioned stores are migrated to schema version 1 on open; newer schemas are rejected.
 - See `docs/COMPATIBILITY.md` for the compatibility matrix and upgrade guidance.
 
+## Release Readiness (v1.0)
+- Release checklist and RC gate definitions: `docs/RELEASE.md`.
+- Performance baselines and regression thresholds: `docs/benchmarks/README.md`.
+
 ## Data Model (Logical)
 - `doc`: `id`, `path`, `mtime`, `hash`, `tag`, `source`, `meta`, `deleted`.
 - `chunk`: `id`, `doc_id`, `offset`, `tokens`, `text`, `embedding`, `deleted`.

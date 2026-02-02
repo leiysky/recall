@@ -48,6 +48,7 @@ document. Use this as the default operating sequence.
   `recall init` → `recall add` → `recall search` → `recall context`.
 - Use `./x` for consistent builds/tests/benchmarks when applicable.
 - Update golden/snapshot tests for JSON output changes.
+- For release candidates, run `scripts/bench_run.py` and compare against baseline thresholds.
 
 ### 6) Document + Commit
 - Update `DESIGN.md`, `AGENTS.md`, and `ROADMAP.md` when behavior or scope changes.
