@@ -1,6 +1,6 @@
 # ISSUE-2026-02-02-v1-0-m8-release-readiness
 
-Status: done
+Status: active
 Milestone: v1.0 Milestone 8 — Release Readiness
 Owner: Nexus
 Created: 2026-02-02
@@ -27,7 +27,8 @@ Out of Scope:
 
 Notes:
 - Ensure release notes reference compatibility matrix and baselines.
-- RC gate definitions live in docs/RELEASE.md; release notes in docs/history/changes/CHANGE-2026-02-02-v1-0-release.md.
+- RC gate definitions live in docs/RELEASE.md; release notes draft in docs/history/changes/CHANGE-2026-02-02-v1-0-release.md.
+- Release tag is pending review and approval.
 
 Links:
 - ROADMAP.md

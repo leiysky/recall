@@ -1,11 +1,13 @@
 # CHANGE-2026-02-02-v1-0-release
 
+Status: draft (release pending)
+
 Milestone: v1.0
 Summary:
 - Interface freeze for CLI/RQL/JSON schema and published compatibility matrix.
 - Benchmark dataset, baselines, regression thresholds, and determinism checks.
 - Release readiness checklist with RC gate definitions.
-- Release tag: v1.0.0
+- Release tag: pending review
 
 User impact:
 - Stable interfaces for v1.0 tooling and agent integrations.
