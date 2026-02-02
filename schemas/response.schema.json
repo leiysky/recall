@@ -13,7 +13,9 @@
         "rql": { "type": ["string", "null"] },
         "filters": { "type": ["string", "null"] },
         "limit": { "type": "integer" },
-        "offset": { "type": "integer" }
+        "offset": { "type": "integer" },
+        "lexical_mode": { "type": ["string", "null"] },
+        "snapshot": { "type": ["string", "null"] }
       },
       "additionalProperties": true
     },
@@ -34,14 +36,32 @@
       "type": "object",
       "additionalProperties": true
     },
+    "explain": {
+      "type": "object",
+      "additionalProperties": true
+    },
     "stats": {
       "type": "object",
       "properties": {
         "took_ms": { "type": "integer" },
         "total_hits": { "type": "integer" },
-        "snapshot": { "type": ["string", "null"] }
+        "snapshot": { "type": ["string", "null"] },
+        "doc_count": { "type": ["integer", "null"] },
+        "chunk_count": { "type": ["integer", "null"] },
+        "db_size_bytes": { "type": ["integer", "null"] },
+        "timings": { "type": ["object", "null"] },
+        "corpus": { "type": ["object", "null"] },
+        "memory": { "type": ["object", "null"] }
       },
       "additionalProperties": true
+    },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "actions": {
+      "type": ["array", "null"],
+      "items": { "type": "string" }
     },
     "warnings": {
       "type": "array",

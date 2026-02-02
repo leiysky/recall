@@ -38,6 +38,7 @@ struct ExportDoc {
     hash: String,
     tag: Option<String>,
     source: Option<String>,
+    meta: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -63,6 +64,7 @@ enum ImportLine {
         hash: String,
         tag: Option<String>,
         source: Option<String>,
+        meta: Option<String>,
     },
     #[serde(rename = "chunk")]
     Chunk {
@@ -87,7 +89,7 @@ pub fn export_store(store: &Store, mut writer: impl Write) -> Result<TransferSta
 
     let mut stmt = store
         .conn
-        .prepare("SELECT id, path, mtime, size, hash, tag, source FROM doc WHERE deleted=0")?;
+        .prepare("SELECT id, path, mtime, size, hash, tag, source, meta FROM doc WHERE deleted=0")?;
     let rows = stmt.query_map([], |row| {
         Ok(ExportDoc {
             r#type: "doc".to_string(),
@@ -98,6 +100,7 @@ pub fn export_store(store: &Store, mut writer: impl Write) -> Result<TransferSta
             hash: row.get(4)?,
             tag: row.get(5)?,
             source: row.get(6)?,
+            meta: row.get(7)?,
         })
     })?;
     for row in rows {
@@ -165,10 +168,11 @@ pub fn import_store(
                     hash,
                     tag,
                     source,
+                    meta,
                 } => {
                     store.conn.execute(
-                        "INSERT OR REPLACE INTO doc (id, path, mtime, size, hash, tag, source, deleted) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0)",
-                        rusqlite::params![id, path, mtime, size, hash, tag, source],
+                        "INSERT OR REPLACE INTO doc (id, path, mtime, size, hash, tag, source, meta, deleted) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0)",
+                        rusqlite::params![id, path, mtime, size, hash, tag, source, meta],
                     )?;
                     docs += 1;
                 }
@@ -199,6 +203,9 @@ pub fn import_store(
 
     store.conn.execute_batch("COMMIT")?;
     rebuild_ann_lsh(store, config)?;
+    if config.ann_backend == "hnsw" {
+        store.rebuild_ann_hnsw()?;
+    }
 
     Ok(TransferStats { docs, chunks })
 }

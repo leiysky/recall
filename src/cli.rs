@@ -17,6 +17,7 @@ use std::path::PathBuf;
 use clap::Args;
 use clap::Parser;
 use clap::Subcommand;
+use clap_complete::Shell;
 
 #[derive(Parser, Debug)]
 #[command(name = "recall", version, about = "CLI-first hybrid search database")]
@@ -60,6 +61,9 @@ pub enum Commands {
         /// Output JSON
         #[arg(long)]
         json: bool,
+        /// Attempt safe repairs
+        #[arg(long)]
+        fix: bool,
     },
 
     /// Compact the database
@@ -74,6 +78,16 @@ pub enum Commands {
 
     /// Import a JSONL export
     Import(ImportArgs),
+
+    /// Generate shell completions
+    Completions {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: Shell,
+    },
+
+    /// Generate a man page
+    Man,
 }
 
 #[derive(Args, Debug)]
@@ -101,9 +115,13 @@ pub struct AddArgs {
     #[arg(long)]
     pub ignore: Vec<String>,
 
-    /// Parser hint (not yet used)
-    #[arg(long)]
+    /// Parser hint (auto|plain|markdown|code)
+    #[arg(long, value_parser = ["auto", "plain", "markdown", "code"])]
     pub parser: Option<String>,
+
+    /// Extract metadata from markdown headers/front matter
+    #[arg(long)]
+    pub extract_meta: bool,
 
     /// Output JSON
     #[arg(long)]
@@ -135,9 +153,21 @@ pub struct SearchArgs {
     #[arg(long)]
     pub explain: bool,
 
+    /// Lexical parsing mode (fts5|literal)
+    #[arg(long, default_value = "fts5", value_parser = ["fts5", "literal"])]
+    pub lexical_mode: String,
+
+    /// Snapshot token for reproducible paging
+    #[arg(long)]
+    pub snapshot: Option<String>,
+
     /// Output JSON
     #[arg(long)]
     pub json: bool,
+
+    /// Output JSON Lines
+    #[arg(long, conflicts_with = "json")]
+    pub jsonl: bool,
 }
 
 #[derive(Args, Debug)]
@@ -157,16 +187,32 @@ pub struct RmArgs {
 #[derive(Args, Debug)]
 pub struct QueryArgs {
     /// RQL string or @file
-    #[arg(long)]
-    pub rql: String,
+    #[arg(long, required_unless_present = "rql_stdin")]
+    pub rql: Option<String>,
+
+    /// Read RQL from stdin
+    #[arg(long, conflicts_with = "rql")]
+    pub rql_stdin: bool,
 
     /// Include explain output
     #[arg(long)]
     pub explain: bool,
 
+    /// Lexical parsing mode (fts5|literal)
+    #[arg(long, default_value = "fts5", value_parser = ["fts5", "literal"])]
+    pub lexical_mode: String,
+
+    /// Snapshot token for reproducible paging
+    #[arg(long)]
+    pub snapshot: Option<String>,
+
     /// Output JSON
     #[arg(long)]
     pub json: bool,
+
+    /// Output JSON Lines
+    #[arg(long, conflicts_with = "json")]
+    pub jsonl: bool,
 }
 
 #[derive(Args, Debug)]
@@ -182,8 +228,8 @@ pub struct ContextArgs {
     #[arg(long)]
     pub diversity: Option<usize>,
 
-    /// Output format (reserved)
-    #[arg(long)]
+    /// Output format (text|json)
+    #[arg(long, value_parser = ["text", "json"])]
     pub format: Option<String>,
 
     /// Exact filter expression
@@ -193,6 +239,14 @@ pub struct ContextArgs {
     /// Include explain output
     #[arg(long)]
     pub explain: bool,
+
+    /// Lexical parsing mode (fts5|literal)
+    #[arg(long, default_value = "fts5", value_parser = ["fts5", "literal"])]
+    pub lexical_mode: String,
+
+    /// Snapshot token for reproducible paging
+    #[arg(long)]
+    pub snapshot: Option<String>,
 
     /// Output JSON
     #[arg(long)]

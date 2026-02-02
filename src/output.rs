@@ -17,6 +17,38 @@ use serde::Serialize;
 use serde_json::Value;
 
 #[derive(Debug, Clone, Serialize, Default)]
+pub struct TimingBreakdown {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filter_ms: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lexical_ms: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub semantic_ms: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub combine_ms: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub order_ms: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assemble_ms: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct CorpusStats {
+    pub docs: i64,
+    pub chunks: i64,
+    pub tokens: i64,
+    pub bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct MemoryStats {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rss_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub virt_bytes: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct StatsOut {
     pub took_ms: i64,
     pub total_hits: i64,
@@ -24,6 +56,12 @@ pub struct StatsOut {
     pub chunk_count: Option<i64>,
     pub db_size_bytes: Option<u64>,
     pub snapshot: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timings: Option<TimingBreakdown>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub corpus: Option<CorpusStats>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory: Option<MemoryStats>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -33,6 +71,10 @@ pub struct QueryOut {
     pub filters: Option<String>,
     pub limit: i64,
     pub offset: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lexical_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snapshot: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -54,7 +96,13 @@ pub struct JsonResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub explain: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub stats: Option<StatsOut>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostics: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actions: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -100,7 +148,21 @@ impl JsonResponse {
             filters,
             limit: limit as i64,
             offset: offset as i64,
+            lexical_mode: None,
+            snapshot: None,
         });
+        self
+    }
+
+    pub fn with_query_meta(
+        mut self,
+        lexical_mode: Option<String>,
+        snapshot: Option<String>,
+    ) -> Self {
+        if let Some(query) = &mut self.query {
+            query.lexical_mode = lexical_mode;
+            query.snapshot = snapshot;
+        }
         self
     }
 
@@ -114,8 +176,26 @@ impl JsonResponse {
         self
     }
 
+    pub fn with_explain(mut self, explain: Value) -> Self {
+        self.explain = Some(explain);
+        self
+    }
+
     pub fn with_stats(mut self, stats: StatsOut) -> Self {
         self.stats = Some(stats);
+        self
+    }
+
+    pub fn with_diagnostics(mut self, diagnostics: Value) -> Self {
+        self.diagnostics = Some(diagnostics);
+        self
+    }
+
+    pub fn with_actions(mut self, actions: Vec<String>) -> Self {
+        if actions.is_empty() {
+            return self;
+        }
+        self.actions = Some(actions);
         self
     }
 

@@ -41,6 +41,21 @@ fn normalize_json(mut value: Value) -> Value {
         if obj.contains_key("snapshot") {
             obj.insert("snapshot".to_string(), json!(""));
         }
+        if obj.contains_key("timings") {
+            obj.insert("timings".to_string(), json!({}));
+        }
+        if let Some(memory) = obj.get_mut("memory")
+            && memory.is_object()
+        {
+            *memory = json!({});
+        }
+        if let Some(corpus) = obj.get_mut("corpus")
+            && let Some(corpus_obj) = corpus.as_object_mut()
+        {
+            if corpus_obj.contains_key("bytes") {
+                corpus_obj.insert("bytes".to_string(), json!(0));
+            }
+        }
     }
     strip_mtime(&mut value);
     value
@@ -51,6 +66,9 @@ fn strip_mtime(value: &mut Value) {
         Value::Object(map) => {
             if map.contains_key("mtime") {
                 map.insert("mtime".to_string(), json!(""));
+            }
+            if map.contains_key("snapshot") {
+                map.insert("snapshot".to_string(), json!(""));
             }
             for v in map.values_mut() {
                 strip_mtime(v);
@@ -319,4 +337,32 @@ fn structured_query_order_by_tiebreaks() {
         .filter_map(|path| path.as_str())
         .collect();
     assert_eq!(paths, vec!["docs/a.txt", "docs/b.txt"]);
+}
+
+#[test]
+fn hnsw_backend_search() {
+    let schema = load_schema();
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    fs::create_dir_all(root.join("docs")).expect("docs dir");
+    fs::write(root.join("docs/a.txt"), "hello hnsw\n").expect("write file");
+
+    let mut cmd = recall_cmd();
+    cmd.args(["init", "."]);
+    assert!(cmd.current_dir(root).output().unwrap().status.success());
+
+    let config_path = root.join("recall.toml");
+    let mut config = fs::read_to_string(&config_path).expect("read config");
+    config = config.replace("ann_backend = \"lsh\"", "ann_backend = \"hnsw\"");
+    fs::write(&config_path, config).expect("write config");
+
+    let mut cmd = recall_cmd();
+    cmd.args(["add", "docs", "--glob", "**/*.txt", "--json"]);
+    let add_json = run_json(&mut cmd, root);
+    assert_schema(&schema, &add_json);
+
+    let mut cmd = recall_cmd();
+    cmd.args(["search", "hnsw", "--json"]);
+    let search_json = run_json(&mut cmd, root);
+    assert_schema(&schema, &search_json);
 }

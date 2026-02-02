@@ -27,6 +27,7 @@ pub struct DocRow {
     pub hash: String,
     pub tag: Option<String>,
     pub source: Option<String>,
+    pub meta: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -53,6 +54,7 @@ pub struct SearchResult {
     pub stats: StatsOut,
     pub filter: Option<String>,
     pub explain_warnings: Vec<String>,
+    pub explain: Option<serde_json::Value>,
     pub selected_fields: Option<Vec<SelectField>>,
     pub include_explain: bool,
     pub limit: usize,

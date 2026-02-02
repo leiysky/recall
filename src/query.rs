@@ -13,13 +13,17 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
+use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::time::Instant;
 
 use anyhow::Result;
+use rusqlite::OptionalExtension;
 use rusqlite::Row;
+use rusqlite::params;
 use rusqlite::params_from_iter;
 use rusqlite::types::Value as SqlValue;
+use serde_json::json;
 
 use crate::ann;
 use crate::config::Config;
@@ -32,6 +36,7 @@ use crate::model::DocRow;
 use crate::model::ScoredItem;
 use crate::model::SearchResult;
 use crate::output::StatsOut;
+use crate::output::TimingBreakdown;
 use crate::rql::CmpOp;
 use crate::rql::FieldRef;
 use crate::rql::FilterExpr;
@@ -53,12 +58,37 @@ pub struct SearchOptions {
     pub use_semantic: bool,
     pub filter: Option<String>,
     pub explain: bool,
+    pub lexical_mode: LexicalMode,
+    pub snapshot: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct SearchInputs {
     pub semantic: Option<String>,
     pub lexical: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LexicalMode {
+    Fts5,
+    Literal,
+}
+
+#[derive(Debug, Clone)]
+struct LexicalRun {
+    results: Vec<ScoredItem>,
+    warning: Option<String>,
+    original: String,
+    sanitized: Option<String>,
+}
+
+impl LexicalMode {
+    pub fn as_label(self) -> &'static str {
+        match self {
+            LexicalMode::Fts5 => "fts5",
+            LexicalMode::Literal => "literal",
+        }
+    }
 }
 
 impl SearchResult {
@@ -110,6 +140,15 @@ impl ScoredItem {
             }
             if doc_fields.contains(&"source") {
                 doc.insert("source".into(), serde_json::json!(self.doc.source));
+            }
+            if doc_fields.contains(&"meta") {
+                if let Some(meta) = &self.doc.meta {
+                    if let Ok(value) = serde_json::from_str::<serde_json::Value>(meta) {
+                        doc.insert("meta".into(), value);
+                    } else {
+                        doc.insert("meta".into(), serde_json::json!(meta));
+                    }
+                }
             }
             if !doc.is_empty() {
                 obj.insert("doc".into(), serde_json::Value::Object(doc));
@@ -211,7 +250,7 @@ fn push_unique(vec: &mut Vec<&'static str>, name: &str) {
 }
 
 fn doc_field_list() -> Vec<&'static str> {
-    vec!["id", "path", "mtime", "hash", "tag", "source"]
+    vec!["id", "path", "mtime", "hash", "tag", "source", "meta"]
 }
 
 fn chunk_field_list() -> Vec<&'static str> {
@@ -226,6 +265,7 @@ fn normalize_doc_field(name: &str) -> Option<&'static str> {
         "hash" => Some("hash"),
         "tag" => Some("tag"),
         "source" => Some("source"),
+        "meta" => Some("meta"),
         _ => None,
     }
 }
@@ -275,7 +315,9 @@ pub fn search_chunks_with_inputs(
 ) -> Result<SearchResult> {
     let started = Instant::now();
     let mut explain_warnings = Vec::new();
+    let mut timings = TimingBreakdown::default();
 
+    let filter_start = Instant::now();
     let filter_expr = if let Some(expr) = filter_expr {
         Some(expr)
     } else {
@@ -286,24 +328,38 @@ pub fn search_chunks_with_inputs(
     } else {
         ("1=1".to_string(), Vec::new())
     };
+    timings.filter_ms = Some(filter_start.elapsed().as_millis() as i64);
+    let (filter_sql, filter_params) =
+        apply_snapshot_filter(filter_sql, filter_params, &opts.snapshot);
 
     let mut lexical_results = Vec::new();
+    let mut lexical_run: Option<LexicalRun> = None;
     if opts.use_lexical {
+        let lex_start = Instant::now();
         if let Some(lex_query) = inputs.lexical.clone() {
-            let (results, warning) =
-                lexical_search(store, &lex_query, &filter_sql, &filter_params, opts.k)?;
-            lexical_results = results;
-            if let Some(warning) = warning {
+            let run = lexical_search(
+                store,
+                &lex_query,
+                &filter_sql,
+                &filter_params,
+                opts.k,
+                opts.lexical_mode,
+            )?;
+            lexical_results = run.results.clone();
+            if let Some(warning) = run.warning.clone() {
                 explain_warnings.push(warning);
             }
+            lexical_run = Some(run);
         } else {
             explain_warnings
                 .push("lexical search requested but no lexical query provided".to_string());
         }
+        timings.lexical_ms = Some(lex_start.elapsed().as_millis() as i64);
     }
 
     let mut semantic_results = Vec::new();
     if opts.use_semantic {
+        let sem_start = Instant::now();
         if let Some(sem_query) = inputs.semantic.clone() {
             semantic_results = semantic_search(
                 store,
@@ -317,17 +373,44 @@ pub fn search_chunks_with_inputs(
             explain_warnings
                 .push("semantic search requested but no semantic query provided".to_string());
         }
+        timings.semantic_ms = Some(sem_start.elapsed().as_millis() as i64);
     }
 
+    let lexical_count = lexical_run
+        .as_ref()
+        .map(|run| run.results.len())
+        .unwrap_or(0);
+    let semantic_count = semantic_results.len();
+    let combine_start = Instant::now();
     let items = combine_results(config, lexical_results, semantic_results, opts.k);
+    timings.combine_ms = Some(combine_start.elapsed().as_millis() as i64);
 
+    let snapshot = opts.snapshot.clone().or_else(|| store.snapshot_token().ok());
     let stats = StatsOut {
         took_ms: started.elapsed().as_millis() as i64,
         total_hits: items.len() as i64,
         doc_count: None,
         chunk_count: None,
         db_size_bytes: None,
-        snapshot: store.snapshot_token().ok(),
+        snapshot: snapshot.clone(),
+        timings: Some(timings),
+        corpus: None,
+        memory: None,
+    };
+
+    let explain = if opts.explain {
+        Some(build_explain_payload(
+            config,
+            &opts,
+            &inputs,
+            lexical_run.as_ref(),
+            lexical_count,
+            semantic_count,
+            items.len(),
+            snapshot.as_deref(),
+        ))
+    } else {
+        None
     };
 
     Ok(SearchResult {
@@ -335,6 +418,7 @@ pub fn search_chunks_with_inputs(
         stats,
         filter: opts.filter,
         explain_warnings,
+        explain,
         selected_fields,
         include_explain: opts.explain,
         limit,
@@ -342,11 +426,107 @@ pub fn search_chunks_with_inputs(
     })
 }
 
+fn apply_snapshot_filter(
+    filter_sql: String,
+    mut filter_params: Vec<SqlValue>,
+    snapshot: &Option<String>,
+) -> (String, Vec<SqlValue>) {
+    if let Some(token) = snapshot {
+        let sql = format!("({}) AND doc.mtime <= ?", filter_sql);
+        filter_params.push(SqlValue::from(token.clone()));
+        (sql, filter_params)
+    } else {
+        (filter_sql, filter_params)
+    }
+}
+
+fn build_explain_payload(
+    config: &Config,
+    opts: &SearchOptions,
+    inputs: &SearchInputs,
+    lexical_run: Option<&LexicalRun>,
+    lexical_count: usize,
+    semantic_count: usize,
+    combined_count: usize,
+    snapshot: Option<&str>,
+) -> serde_json::Value {
+    let mode = if opts.use_lexical && opts.use_semantic {
+        "hybrid"
+    } else if opts.use_lexical {
+        "lexical"
+    } else if opts.use_semantic {
+        "semantic"
+    } else {
+        "none"
+    };
+
+    let mut obj = serde_json::Map::new();
+    obj.insert("mode".into(), json!(mode));
+    obj.insert(
+        "candidates".into(),
+        json!({
+            "lexical": lexical_count as i64,
+            "semantic": semantic_count as i64,
+            "combined": combined_count as i64,
+        }),
+    );
+    obj.insert(
+        "cache".into(),
+        json!({
+            "embedding": "none",
+            "ann": "none",
+            "fts": "none",
+        }),
+    );
+    obj.insert(
+        "resolved_config".into(),
+        json!({
+            "embedding": config.embedding,
+            "embedding_dim": config.embedding_dim,
+            "ann_backend": config.ann_backend,
+            "ann_bits": config.ann_bits,
+            "ann_seed": config.ann_seed,
+            "bm25_weight": config.bm25_weight,
+            "vector_weight": config.vector_weight,
+            "max_limit": config.max_limit,
+            "chunk_tokens": config.chunk_tokens,
+            "overlap_tokens": config.overlap_tokens,
+            "lexical_mode": opts.lexical_mode.as_label(),
+        }),
+    );
+    if let Some(token) = snapshot {
+        obj.insert("snapshot".into(), json!(token));
+    }
+
+    if opts.use_lexical {
+        let original = lexical_run
+            .map(|run| run.original.clone())
+            .or_else(|| inputs.lexical.clone())
+            .unwrap_or_default();
+        let mut lex = serde_json::Map::new();
+        lex.insert("mode".into(), json!(opts.lexical_mode.as_label()));
+        lex.insert("original".into(), json!(original));
+        if let Some(run) = lexical_run {
+            if let Some(sanitized) = &run.sanitized {
+                lex.insert("sanitized".into(), json!(sanitized));
+                lex.insert("sanitized_applied".into(), json!(true));
+            } else {
+                lex.insert("sanitized_applied".into(), json!(false));
+            }
+        }
+        obj.insert("lexical".into(), serde_json::Value::Object(lex));
+    }
+
+    serde_json::Value::Object(obj)
+}
+
 pub fn run_rql(
     store: &Store,
     config: &Config,
     rql_text: &str,
     explain: bool,
+    lexical_mode: LexicalMode,
+    snapshot: Option<String>,
 ) -> Result<SearchResult> {
     let q = parse_rql(rql_text)?;
 
@@ -363,6 +543,8 @@ pub fn run_rql(
             use_semantic: q.using_semantic.is_some(),
             filter: None,
             explain,
+            lexical_mode,
+            snapshot: snapshot.clone(),
         };
         let mut result = search_chunks_with_inputs(
             store,
@@ -388,25 +570,34 @@ pub fn run_rql(
         return Ok(result);
     }
 
-    run_structured_query(store, &q)
+    run_structured_query(store, &q, explain, snapshot)
 }
 
-fn run_structured_query(store: &Store, q: &RqlQuery) -> Result<SearchResult> {
+fn run_structured_query(
+    store: &Store,
+    q: &RqlQuery,
+    explain: bool,
+    snapshot: Option<String>,
+) -> Result<SearchResult> {
     let started = Instant::now();
+    let mut timings = TimingBreakdown::default();
     let limit = q.limit.unwrap_or(1000);
     let offset = q.offset.unwrap_or(0);
+    let filter_start = Instant::now();
     let (filter_sql, filter_params) = if let Some(expr) = &q.filter {
         filter_to_sql(expr)?
     } else {
         ("1=1".to_string(), Vec::new())
     };
+    timings.filter_ms = Some(filter_start.elapsed().as_millis() as i64);
+    let (filter_sql, filter_params) = apply_snapshot_filter(filter_sql, filter_params, &snapshot);
 
     let mut items = Vec::new();
 
     if q.table == Table::Chunk {
         let order_sql = order_clause(q, Table::Chunk)?;
         let sql = format!(
-            "SELECT chunk.id, chunk.doc_id, chunk.offset, chunk.tokens, chunk.text, doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source\n             FROM chunk JOIN doc ON doc.id = chunk.doc_id\n             WHERE chunk.deleted=0 AND doc.deleted=0 AND ({})\n             {}\n             LIMIT ? OFFSET ?",
+            "SELECT chunk.id, chunk.doc_id, chunk.offset, chunk.tokens, chunk.text, doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source, doc.meta\n             FROM chunk JOIN doc ON doc.id = chunk.doc_id\n             WHERE chunk.deleted=0 AND doc.deleted=0 AND ({})\n             {}\n             LIMIT ? OFFSET ?",
             filter_sql, order_sql
         );
         let mut params = filter_params.clone();
@@ -427,7 +618,7 @@ fn run_structured_query(store: &Store, q: &RqlQuery) -> Result<SearchResult> {
     } else {
         let order_sql = order_clause(q, Table::Doc)?;
         let sql = format!(
-            "SELECT doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source\n             FROM doc\n             WHERE doc.deleted=0 AND ({})\n             {}\n             LIMIT ? OFFSET ?",
+            "SELECT doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source, doc.meta\n             FROM doc\n             WHERE doc.deleted=0 AND ({})\n             {}\n             LIMIT ? OFFSET ?",
             filter_sql, order_sql
         );
         let mut params = filter_params.clone();
@@ -442,6 +633,7 @@ fn run_structured_query(store: &Store, q: &RqlQuery) -> Result<SearchResult> {
                 hash: row.get(3)?,
                 tag: row.get(4)?,
                 source: row.get(5)?,
+                meta: row.get(6)?,
             })
         })?;
         for row in rows {
@@ -461,7 +653,10 @@ fn run_structured_query(store: &Store, q: &RqlQuery) -> Result<SearchResult> {
         doc_count: None,
         chunk_count: None,
         db_size_bytes: None,
-        snapshot: store.snapshot_token().ok(),
+        snapshot: snapshot.clone().or_else(|| store.snapshot_token().ok()),
+        timings: Some(timings),
+        corpus: None,
+        memory: None,
     };
 
     Ok(SearchResult {
@@ -469,6 +664,17 @@ fn run_structured_query(store: &Store, q: &RqlQuery) -> Result<SearchResult> {
         stats,
         filter: None,
         explain_warnings: Vec::new(),
+        explain: if explain {
+            Some(json!({
+                "mode": "structured",
+                "resolved_config": {
+                    "max_limit": q.limit.unwrap_or(1000),
+                },
+                "snapshot": snapshot,
+            }))
+        } else {
+            None
+        },
         selected_fields: Some(q.fields.clone()),
         include_explain: false,
         limit,
@@ -482,10 +688,11 @@ fn lexical_search(
     filter_sql: &str,
     filter_params: &[SqlValue],
     k: usize,
-) -> Result<(Vec<ScoredItem>, Option<String>)> {
+    mode: LexicalMode,
+) -> Result<LexicalRun> {
     let run = |query: &str| -> Result<Vec<ScoredItem>> {
         let sql = format!(
-            "SELECT chunk.id, chunk.doc_id, chunk.offset, chunk.tokens, chunk.text,\n                doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source,\n                bm25(chunk_fts) as bm25\n         FROM chunk_fts\n         JOIN chunk ON chunk_fts.rowid = chunk.rowid\n         JOIN doc ON doc.id = chunk.doc_id\n         WHERE chunk.deleted=0 AND doc.deleted=0 AND ({}) AND chunk_fts MATCH ?\n         ORDER BY bm25 ASC, doc.path ASC, chunk.offset ASC, chunk.id ASC\n         LIMIT ?",
+            "SELECT chunk.id, chunk.doc_id, chunk.offset, chunk.tokens, chunk.text,\n                doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source, doc.meta,\n                bm25(chunk_fts) as bm25\n         FROM chunk_fts\n         JOIN chunk ON chunk_fts.rowid = chunk.rowid\n         JOIN doc ON doc.id = chunk.doc_id\n         WHERE chunk.deleted=0 AND doc.deleted=0 AND ({}) AND chunk_fts MATCH ?\n         ORDER BY bm25 ASC, doc.path ASC, chunk.offset ASC, chunk.id ASC\n         LIMIT ?",
             filter_sql
         );
 
@@ -496,7 +703,7 @@ fn lexical_search(
         let mut stmt = store.conn.prepare(&sql)?;
         let rows = stmt.query_map(params_from_iter(params), |row| {
             let (chunk, doc) = map_chunk_row(row)?;
-            let bm25: f64 = row.get(11)?;
+            let bm25: f64 = row.get(12)?;
             let score = 1.0 / (1.0 + bm25.max(0.0));
             Ok(ScoredItem {
                 score: score as f32,
@@ -514,30 +721,59 @@ fn lexical_search(
         Ok(results)
     };
 
-    match run(query) {
-        Ok(results) => Ok((results, None)),
+    let original = query.to_string();
+    let mut warning = None;
+    let mut sanitized = None;
+    let mut query_to_run = original.clone();
+
+    if matches!(mode, LexicalMode::Literal) {
+        let (safe, changed) = sanitize_fts5_query(&original);
+        query_to_run = safe.clone();
+        if changed {
+            sanitized = Some(safe);
+            warning = Some("lexical query sanitized for literal mode".to_string());
+        }
+        if query_to_run.is_empty() {
+            return Ok(LexicalRun {
+                results: Vec::new(),
+                warning: Some("lexical query sanitized to empty; skipping lexical search".to_string()),
+                original,
+                sanitized,
+            });
+        }
+    }
+
+    match run(&query_to_run) {
+        Ok(results) => Ok(LexicalRun {
+            results,
+            warning,
+            original,
+            sanitized,
+        }),
         Err(err) => {
-            if is_fts5_syntax_error(&err) {
-                let (sanitized, changed) = sanitize_fts5_query(query);
+            if is_fts5_syntax_error(&err) && matches!(mode, LexicalMode::Fts5) {
+                let (safe, changed) = sanitize_fts5_query(&original);
                 if !changed {
                     return Err(err);
                 }
-                if sanitized.is_empty() {
-                    return Ok((
-                        Vec::new(),
-                        Some(
+                sanitized = Some(safe.clone());
+                if safe.is_empty() {
+                    return Ok(LexicalRun {
+                        results: Vec::new(),
+                        warning: Some(
                             "lexical query sanitized to empty; skipping lexical search".to_string(),
                         ),
-                    ));
+                        original,
+                        sanitized,
+                    });
                 }
-                match run(&sanitized) {
-                    Ok(results) => Ok((
+                match run(&safe) {
+                    Ok(results) => Ok(LexicalRun {
                         results,
-                        Some(format!(
-                            "lexical query sanitized for FTS5: \"{}\"",
-                            sanitized
-                        )),
-                    )),
+                        warning: Some(format!("lexical query sanitized for FTS5: \"{}\"", safe)),
+                        original,
+                        sanitized,
+                    }),
                     Err(_) => Err(err),
                 }
             } else {
@@ -583,13 +819,39 @@ fn semantic_search(
 ) -> Result<Vec<ScoredItem>> {
     let embedder = HashEmbedder::new(config.embedding_dim);
     let query_vec = embedder.embed(query);
-
-    if config.ann_bits > 0
-        && let Ok(results) =
-            semantic_search_lsh(store, config, &query_vec, filter_sql, filter_params, k)
-        && results.len() >= k
-    {
-        return Ok(results);
+    let backend = config.ann_backend.as_str();
+    if backend.eq_ignore_ascii_case("hnsw") {
+        if let Ok(results) =
+            semantic_search_hnsw(store, config, &query_vec, filter_sql, filter_params, k)
+            && results.len() >= k
+        {
+            return Ok(results);
+        }
+        if config.ann_bits > 0
+            && let Ok(results) =
+                semantic_search_lsh(store, config, &query_vec, filter_sql, filter_params, k)
+            && results.len() >= k
+        {
+            return Ok(results);
+        }
+    } else if backend.eq_ignore_ascii_case("lsh") || backend.is_empty() {
+        if config.ann_bits > 0
+            && let Ok(results) =
+                semantic_search_lsh(store, config, &query_vec, filter_sql, filter_params, k)
+            && results.len() >= k
+        {
+            return Ok(results);
+        }
+    } else if backend.eq_ignore_ascii_case("linear") || backend.eq_ignore_ascii_case("flat") {
+        // fall through to linear
+    } else {
+        if config.ann_bits > 0
+            && let Ok(results) =
+                semantic_search_lsh(store, config, &query_vec, filter_sql, filter_params, k)
+            && results.len() >= k
+        {
+            return Ok(results);
+        }
     }
 
     semantic_search_linear(store, &query_vec, filter_sql, filter_params, k)
@@ -608,7 +870,7 @@ fn semantic_search_lsh(
 
     let placeholders = vec!["?"; sigs.len()].join(", ");
     let sql = format!(
-        "SELECT chunk.id, chunk.doc_id, chunk.offset, chunk.tokens, chunk.text, chunk.embedding,\n                doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source\n         FROM ann_lsh\n         JOIN chunk ON ann_lsh.chunk_id = chunk.id\n         JOIN doc ON doc.id = chunk.doc_id\n         WHERE chunk.deleted=0 AND doc.deleted=0 AND ({}) AND ann_lsh.signature IN ({})",
+        "SELECT chunk.id, chunk.doc_id, chunk.offset, chunk.tokens, chunk.text, chunk.embedding,\n                doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source, doc.meta\n         FROM ann_lsh\n         JOIN chunk ON ann_lsh.chunk_id = chunk.id\n         JOIN doc ON doc.id = chunk.doc_id\n         WHERE chunk.deleted=0 AND doc.deleted=0 AND ({}) AND ann_lsh.signature IN ({})",
         filter_sql, placeholders
     );
 
@@ -641,6 +903,97 @@ fn semantic_search_lsh(
     Ok(scored)
 }
 
+fn semantic_search_hnsw(
+    store: &Store,
+    config: &Config,
+    query_vec: &[f32],
+    filter_sql: &str,
+    filter_params: &[SqlValue],
+    k: usize,
+) -> Result<Vec<ScoredItem>> {
+    if config.ann_bits == 0 {
+        return Ok(Vec::new());
+    }
+    let sig = ann::signature(query_vec, config.ann_bits, config.ann_seed);
+    let sigs = ann::neighbor_signatures(sig, config.ann_bits);
+    let placeholders = vec!["?"; sigs.len()].join(", ");
+    let seed_limit = usize::max(32, k.saturating_mul(4)) as i64;
+    let sql = format!(
+        "SELECT chunk_id FROM ann_lsh WHERE signature IN ({}) LIMIT {}",
+        placeholders, seed_limit
+    );
+    let mut params: Vec<SqlValue> = Vec::new();
+    for s in sigs {
+        params.push(SqlValue::from(s as i64));
+    }
+    let mut stmt = store.conn.prepare(&sql)?;
+    let rows = stmt.query_map(params_from_iter(params), |row| row.get::<_, String>(0))?;
+    let mut candidates: BTreeSet<String> = BTreeSet::new();
+    let mut seeds = Vec::new();
+    for row in rows {
+        let id = row?;
+        seeds.push(id.clone());
+        candidates.insert(id);
+    }
+    if seeds.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    for id in &seeds {
+        let neighbors: Option<String> = store
+            .conn
+            .query_row(
+                "SELECT neighbors FROM ann_hnsw WHERE chunk_id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if let Some(raw) = neighbors {
+            if let Ok(list) = serde_json::from_str::<Vec<String>>(&raw) {
+                for neighbor in list {
+                    candidates.insert(neighbor);
+                }
+            }
+        }
+    }
+
+    if candidates.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let placeholders = vec!["?"; candidates.len()].join(", ");
+    let sql = format!(
+        "SELECT chunk.id, chunk.doc_id, chunk.offset, chunk.tokens, chunk.text, chunk.embedding,\n                doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source, doc.meta\n         FROM chunk\n         JOIN doc ON doc.id = chunk.doc_id\n         WHERE chunk.deleted=0 AND doc.deleted=0 AND ({}) AND chunk.id IN ({})",
+        filter_sql, placeholders
+    );
+    let mut params: Vec<SqlValue> = filter_params.to_vec();
+    for id in candidates {
+        params.push(SqlValue::from(id));
+    }
+    let mut stmt = store.conn.prepare(&sql)?;
+    let rows = stmt.query_map(params_from_iter(params), |row| {
+        let (chunk, doc) = map_chunk_row_with_embedding(row)?;
+        Ok((chunk, doc))
+    })?;
+
+    let mut scored = Vec::new();
+    for row in rows {
+        let (chunk, doc) = row?;
+        let score = cosine_similarity(query_vec, &chunk.embedding);
+        scored.push(ScoredItem {
+            score,
+            lexical: None,
+            semantic: Some(score),
+            doc,
+            chunk: Some(chunk.into_chunk_row()),
+        });
+    }
+
+    sort_by_score_with_tiebreak(&mut scored, false);
+    scored.truncate(k);
+    Ok(scored)
+}
+
 fn semantic_search_linear(
     store: &Store,
     query_vec: &[f32],
@@ -649,7 +1002,7 @@ fn semantic_search_linear(
     k: usize,
 ) -> Result<Vec<ScoredItem>> {
     let sql = format!(
-        "SELECT chunk.id, chunk.doc_id, chunk.offset, chunk.tokens, chunk.text, chunk.embedding,\n                doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source\n         FROM chunk\n         JOIN doc ON doc.id = chunk.doc_id\n         WHERE chunk.deleted=0 AND doc.deleted=0 AND ({})",
+        "SELECT chunk.id, chunk.doc_id, chunk.offset, chunk.tokens, chunk.text, chunk.embedding,\n                doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source, doc.meta\n         FROM chunk\n         JOIN doc ON doc.id = chunk.doc_id\n         WHERE chunk.deleted=0 AND doc.deleted=0 AND ({})",
         filter_sql
     );
     let mut stmt = store.conn.prepare(&sql)?;
@@ -762,6 +1115,7 @@ fn map_chunk_row(row: &Row) -> rusqlite::Result<(ChunkRow, DocRow)> {
         hash: row.get(8)?,
         tag: row.get(9)?,
         source: row.get(10)?,
+        meta: row.get(11)?,
     };
     Ok((chunk, doc))
 }
@@ -796,6 +1150,7 @@ fn map_chunk_row_with_embedding(row: &Row) -> rusqlite::Result<(ChunkRowWithEmbe
         hash: row.get(9)?,
         tag: row.get(10)?,
         source: row.get(11)?,
+        meta: row.get(12)?,
     };
     Ok((chunk, doc))
 }
@@ -864,8 +1219,23 @@ fn field_to_sql(field: &FieldRef) -> Result<String> {
         None => anyhow::bail!("field must be qualified: {}", field.name),
     };
 
-    if table == "doc" && !is_doc_field(name) {
-        anyhow::bail!("unknown doc field: {name}");
+    if table == "doc" {
+        if let Some(key) = name.strip_prefix("meta.") {
+            let key = key.trim();
+            if key.is_empty() {
+                anyhow::bail!("metadata key required after doc.meta");
+            }
+            if !key
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+            {
+                anyhow::bail!("metadata key contains unsupported characters: {key}");
+            }
+            return Ok(format!("json_extract(doc.meta, '$.{}')", key));
+        }
+        if !is_doc_field(name) {
+            anyhow::bail!("unknown doc field: {name}");
+        }
     }
     if table == "chunk" && !is_chunk_field(name) {
         anyhow::bail!("unknown chunk field: {name}");
@@ -989,18 +1359,42 @@ enum FieldValue {
     None,
 }
 
+fn meta_field_value(meta: &Option<String>, key: &str) -> FieldValue {
+    let Some(raw) = meta else {
+        return FieldValue::None;
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) else {
+        return FieldValue::None;
+    };
+    let Some(v) = value.get(key) else {
+        return FieldValue::None;
+    };
+    match v {
+        serde_json::Value::String(s) => FieldValue::Str(s.clone()),
+        serde_json::Value::Number(n) => n.as_i64().map(FieldValue::Num).unwrap_or(FieldValue::None),
+        serde_json::Value::Bool(b) => FieldValue::Str(b.to_string()),
+        _ => FieldValue::None,
+    }
+}
+
 fn field_value(item: &ScoredItem, field: &FieldRef) -> FieldValue {
     let table = field.table.clone().unwrap_or(Table::Doc);
     match table {
-        Table::Doc => match field.name.as_str() {
-            "id" => FieldValue::Str(item.doc.id.clone()),
-            "path" => FieldValue::Str(item.doc.path.clone()),
-            "mtime" => FieldValue::Str(item.doc.mtime.clone()),
-            "hash" => FieldValue::Str(item.doc.hash.clone()),
-            "tag" => FieldValue::Str(item.doc.tag.clone().unwrap_or_default()),
-            "source" => FieldValue::Str(item.doc.source.clone().unwrap_or_default()),
-            _ => FieldValue::None,
-        },
+        Table::Doc => {
+            if let Some(key) = field.name.strip_prefix("meta.") {
+                return meta_field_value(&item.doc.meta, key);
+            }
+            match field.name.as_str() {
+                "id" => FieldValue::Str(item.doc.id.clone()),
+                "path" => FieldValue::Str(item.doc.path.clone()),
+                "mtime" => FieldValue::Str(item.doc.mtime.clone()),
+                "hash" => FieldValue::Str(item.doc.hash.clone()),
+                "tag" => FieldValue::Str(item.doc.tag.clone().unwrap_or_default()),
+                "source" => FieldValue::Str(item.doc.source.clone().unwrap_or_default()),
+                "meta" => FieldValue::Str(item.doc.meta.clone().unwrap_or_default()),
+                _ => FieldValue::None,
+            }
+        }
         Table::Chunk => {
             if let Some(chunk) = &item.chunk {
                 match field.name.as_str() {
@@ -1015,5 +1409,18 @@ fn field_value(item: &ScoredItem, field: &FieldRef) -> FieldValue {
                 FieldValue::None
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn filter_allows_doc_meta_key() {
+        let expr = parse_filter("doc.meta.status = 'open'").expect("parse filter");
+        let (sql, params) = filter_to_sql(&expr).expect("filter to sql");
+        assert!(sql.contains("json_extract(doc.meta"));
+        assert_eq!(params.len(), 1);
     }
 }
