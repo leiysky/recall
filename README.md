@@ -142,7 +142,7 @@ Notes:
 Example:
 ```
 SELECT chunk.text, chunk.doc_id, score FROM chunk
-USING semantic("rate limit") , lexical("429")
+USING semantic("rate limit"), lexical("429")
 FILTER doc.path GLOB "**/api/**" AND chunk.tokens <= 256
 ORDER BY score DESC
 LIMIT 8;
@@ -160,7 +160,7 @@ FILTER doc.tag = "docs" AND doc.path GLOB "**/api/**"
 ```
 
 ## JSON Output
-All commands support `--json` with a stable schema (including `schema_version`). Errors are machine-parseable and include `code` and `message`. A `stats.snapshot` token is provided as a reproducibility hint, and `--snapshot` accepts tokens for deterministic pagination. Use `--jsonl` for streaming large result sets.
+All commands support `--json` with a stable schema (including `schema_version`). Errors are machine-parseable and include `code` and `message`. A `stats.snapshot` token is provided as a reproducibility hint, and `--snapshot` accepts tokens for deterministic pagination. Use `--jsonl` for streaming large result sets from `recall search` and `recall query`.
 
 ## Export / Import
 Use JSONL for portability:

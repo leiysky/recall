@@ -1,7 +1,7 @@
 # Recall Roadmap
 
 Date: 2026-02-02
-Status: Principles-aligned plan (post-MVP)
+Status: Post-MVP; backlog flush complete. Next milestones TBD.
 
 ## Done
 - MVP implementation: CLI, RQL/FEL, SQLite store, ingest, hybrid search, context assembly.
@@ -18,8 +18,10 @@ Status: Principles-aligned plan (post-MVP)
 - Added squash/rebase rule to WORKFLOWS.
 - Backlog milestone alignment across issue metadata.
   (issue: docs/issues/done/ISSUE-2026-02-02-backlog-milestone-alignment.md)
+- Documentation tidy-up pass for post-backlog clarity.
+  (issue: docs/issues/done/ISSUE-2026-02-02-docs-tidyup.md)
 
-## Next Milestones (Ordered by principles)
+## Completed Milestones (Backlog Flush, ordered by principles)
 
 ### Milestone 1 — Determinism + Explainability
 - Canonicalize core principles across docs and add a glossary.
@@ -60,3 +62,6 @@ Status: Principles-aligned plan (post-MVP)
 ### Milestone 5 — Hybrid Retrieval Performance (Optional)
 - Replace LSH shortlist with HNSW and add ANN migration/fallback.
   (issue: docs/issues/done/ISSUE-2026-02-01-ann-hnsw-backend.md)
+
+## Next
+- Open new issues in `docs/issues/open/` and link them here as milestones are defined.
