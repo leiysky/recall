@@ -15,6 +15,7 @@ Status: Principles-aligned plan (post-MVP)
 - Enforced default git workflow in DEVELOPMENT_RULES.
 - Squashed local main history before merge.
 - Enforced deterministic tie-breaks for ORDER BY and search results.
+- Added squash/rebase rule to WORKFLOWS.
 
 ## Next Milestones (Ordered by principles)
 

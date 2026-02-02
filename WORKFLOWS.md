@@ -23,6 +23,7 @@ document. Use this as the default operating sequence.
   - One coherent change per commit; avoid mega-commits.
   - Add a short “why” in the body if non-obvious.
   - Mention schema/on-disk/JSON changes explicitly in the body.
+- Squash or rebase before merging so each issue lands as a minimal set of commits.
 - Integrate document workflow with git:
   - Ensure `docs/issues/open/ISSUE-*.md` exists before branching.
   - Move to `docs/issues/active/` when work starts; log progress and commit SHAs
