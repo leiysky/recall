@@ -1,7 +1,28 @@
 # Recall Roadmap
 
 Date: 2026-02-02
-Status: Post-MVP; backlog flush complete. Next milestones TBD.
+Status: Planning v1.0; milestones defined and ready for issue breakdown.
+
+## v1.0 Plan (Proposed)
+Target window: 2026-03-15 to 2026-04-30.
+
+### Milestone 6 — Interface Freeze + Compatibility
+- Freeze CLI, RQL, and JSON schema for 1.0 (no breaking changes after this point).
+- Define the supported upgrade path and migration guarantees for on-disk schema.
+- Publish a compatibility matrix (OS/toolchain + embedding provider expectations).
+  (issue: docs/issues/open/ISSUE-2026-02-02-v1-0-plan.md)
+
+### Milestone 7 — Quality + Performance Baselines
+- Establish a reproducible benchmark dataset or generator and publish baseline numbers.
+- Define regression thresholds and add run-to-run determinism checks.
+- Validate upgrades across prior schema versions with explicit migration tests.
+  (issue: docs/issues/open/ISSUE-2026-02-02-v1-0-plan.md)
+
+### Milestone 8 — Release Readiness
+- Complete documentation updates (README, DESIGN, AGENTS, WORKFLOWS).
+- Produce a release candidate checklist with sign-off criteria and zero P0/P1 open issues.
+- Cut v1.0 release notes and tag the release.
+  (issue: docs/issues/open/ISSUE-2026-02-02-v1-0-plan.md)
 
 ## Done
 - MVP implementation: CLI, RQL/FEL, SQLite store, ingest, hybrid search, context assembly.
@@ -64,4 +85,5 @@ Status: Post-MVP; backlog flush complete. Next milestones TBD.
   (issue: docs/issues/done/ISSUE-2026-02-01-ann-hnsw-backend.md)
 
 ## Next
-- Open new issues in `docs/issues/open/` and link them here as milestones are defined.
+- Break v1.0 milestones into separate issues in `docs/issues/open/`.
+- Link milestone issues here and move the plan issue to active.
