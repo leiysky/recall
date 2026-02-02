@@ -11,6 +11,8 @@ Target window: 2026-03-15 to 2026-04-30.
 - Define the supported upgrade path and migration guarantees for on-disk schema.
 - Publish a compatibility matrix (OS/toolchain + embedding provider expectations).
   (issue: docs/issues/done/ISSUE-2026-02-02-v1-0-m6-interface-freeze-compatibility.md)
+- Add pipeline-style RQL clause order (FROM first, SELECT last) with legacy SELECT-first support.
+  (issue: docs/issues/done/ISSUE-2026-02-02-rql-pipeline-clause-order.md)
 
 ### Milestone 7 — Quality + Performance Baselines
 - Establish a reproducible benchmark dataset or generator and publish baseline numbers.

@@ -92,7 +92,7 @@ recall add /home/leiysky/work/recall \
 4) Query and assemble context:
 ```
 recall search "RQL strict filters" --filter "doc.path GLOB \"**/src/**\"" --json
-recall query --rql "SELECT chunk.text FROM chunk USING semantic('ann lsh') LIMIT 6;"
+recall query --rql "FROM chunk USING semantic('ann lsh') LIMIT 6 SELECT chunk.text;"
 recall context "how ordering works" --budget-tokens 1200 --diversity 2
 ```
 
@@ -142,7 +142,7 @@ recall add /home/leiysky/work/recall \
   --ignore "**/target/**" \
   --ignore "**/.git/**"
 
-recall query --rql "SELECT doc.path FROM doc FILTER doc.tag = \"recall\" LIMIT 10;"
+recall query --rql "FROM doc FILTER doc.tag = \"recall\" LIMIT 10 SELECT doc.path;"
 recall context "ordering rules" --budget-tokens 1200 --diversity 2
 
 rm -rf "$tmpdir"
@@ -181,7 +181,7 @@ can be queried with exact filters.
 ### Recall Queries
 - List open issues:
 ```
-recall query --rql "SELECT doc.path FROM doc FILTER doc.path GLOB '**/docs/issues/open/**' ORDER BY doc.mtime DESC LIMIT 20;"
+recall query --rql "FROM doc FILTER doc.path GLOB '**/docs/issues/open/**' ORDER BY doc.mtime DESC LIMIT 20 SELECT doc.path;"
 ```
 - Build context for an issue:
 ```

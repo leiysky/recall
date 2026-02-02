@@ -43,7 +43,7 @@ Maintain a curated corpus with tags and sources for audits.
 ```
 recall init ./kb
 recall add ./policies --glob "**/*.md" --tag policy --source "handbook"
-recall query --rql "SELECT doc.path FROM doc FILTER doc.tag = \"policy\" LIMIT 20;"
+recall query --rql "FROM doc FILTER doc.tag = \"policy\" LIMIT 20 SELECT doc.path;"
 ```
 
 ### 3) Incident Response / Runbooks
@@ -63,7 +63,7 @@ recall context "evaluation methodology" --budget-tokens 1200 --diversity 2
 ### 5) Agent Tooling Pipelines
 Integrate `recall query --json` into pipelines for reproducible retrieval.
 ```
-recall query --rql "SELECT chunk.text, score FROM chunk USING semantic('SLO') LIMIT 6;" --json
+recall query --rql "FROM chunk USING semantic('SLO') LIMIT 6 SELECT chunk.text, score;" --json
 ```
 
 ## Install (Local)
@@ -127,25 +127,28 @@ recall search "migration" --filter "doc.meta.status = 'active'" --json
 ## RQL (Recall Query Language)
 Minimal shape:
 ```
-SELECT <fields> FROM <table>
+FROM <table>
 USING semantic(<text>) [, lexical(<text>)]
 FILTER <boolean-expr>
 ORDER BY <field|score> [ASC|DESC]
-LIMIT <n> [OFFSET <m>];
+LIMIT <n> [OFFSET <m>]
+SELECT <fields>;
 ```
 
 Notes:
 - `USING` enables semantic/lexical search; without it, queries are strict filters only.
 - `FILTER` is exact and fields must be qualified (`doc.*`, `chunk.*`).
 - Unknown `SELECT` fields are ignored in v0.1 (permissive).
+- Legacy `SELECT ... FROM ...` syntax is still accepted for compatibility.
 
 Example:
 ```
-SELECT chunk.text, chunk.doc_id, score FROM chunk
+FROM chunk
 USING semantic("rate limit"), lexical("429")
 FILTER doc.path GLOB "**/api/**" AND chunk.tokens <= 256
 ORDER BY score DESC
-LIMIT 8;
+LIMIT 8
+SELECT chunk.text, chunk.doc_id, score;
 ```
 
 ## Filter Expression Language (FEL)

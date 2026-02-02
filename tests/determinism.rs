@@ -136,7 +136,7 @@ fn deterministic_outputs() {
         &[
             "query",
             "--rql",
-            "SELECT chunk.text, doc.path FROM chunk USING semantic('gamma') LIMIT 4;",
+            "FROM chunk USING semantic('gamma') LIMIT 4 SELECT chunk.text, doc.path;",
             "--snapshot",
             snapshot,
             "--json",

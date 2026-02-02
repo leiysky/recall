@@ -53,11 +53,12 @@ Canonical source: this section defines the core principles and terms; other docs
 
 ### RQL (AI-native)
 ```
-SELECT <fields> FROM <table>
+FROM <table>
 USING semantic(<text>) [, lexical(<text>)]
 FILTER <boolean-expr>
 ORDER BY <field|score> [ASC|DESC]
-LIMIT <n> [OFFSET <m>];
+LIMIT <n> [OFFSET <m>]
+SELECT <fields>;
 ```
 
 Notes:
@@ -65,6 +66,7 @@ Notes:
 - `FILTER` is exact; fields must be qualified (`doc.*`, `chunk.*`).
 - `ORDER BY score` is meaningful only when `USING` is present.
 - Unknown `SELECT` fields are ignored in v0.1 (permissive).
+- Legacy `SELECT ... FROM ...` syntax is still accepted for compatibility.
 
 ### Filter Expression Language (FEL)
 ```

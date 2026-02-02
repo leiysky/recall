@@ -9,7 +9,7 @@ expression: normalize_json(query_structured_json)
     "lexical_mode": "fts5",
     "limit": 2,
     "offset": 0,
-    "rql": "SELECT doc.path FROM doc FILTER doc.path LIKE '%docs%' LIMIT 2;",
+    "rql": "FROM doc FILTER doc.path LIKE '%docs%' LIMIT 2 SELECT doc.path;",
     "snapshot": "",
     "text": ""
   },

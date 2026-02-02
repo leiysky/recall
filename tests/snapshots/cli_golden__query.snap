@@ -9,7 +9,7 @@ expression: normalize_json(query_json)
     "lexical_mode": "fts5",
     "limit": 3,
     "offset": 0,
-    "rql": "SELECT chunk.text, chunk.offset, doc.path FROM chunk USING semantic('recall') LIMIT 3;",
+    "rql": "FROM chunk USING semantic('recall') LIMIT 3 SELECT chunk.text, chunk.offset, doc.path;",
     "snapshot": "",
     "text": ""
   },

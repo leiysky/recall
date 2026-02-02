@@ -182,11 +182,60 @@ impl Parser {
     }
 
     fn parse_rql(&mut self) -> Result<RqlQuery> {
+        if self.peek_keyword(Keyword::Select) {
+            self.parse_rql_select_first()
+        } else if self.peek_keyword(Keyword::From) {
+            self.parse_rql_from_first()
+        } else {
+            anyhow::bail!("expected SELECT or FROM")
+        }
+    }
+
+    fn parse_rql_select_first(&mut self) -> Result<RqlQuery> {
         self.expect_keyword(Keyword::Select)?;
         let fields = self.parse_select_fields()?;
         self.expect_keyword(Keyword::From)?;
         let table = self.parse_table()?;
+        let (using_semantic, using_lexical) = self.parse_using_clause()?;
+        let filter = self.parse_filter_clause()?;
+        let order_by = self.parse_order_clause()?;
+        let (limit, offset) = self.parse_limit_clause()?;
+        self.consume_semicolon();
+        Ok(RqlQuery {
+            fields,
+            table,
+            using_semantic,
+            using_lexical,
+            filter,
+            order_by,
+            limit,
+            offset,
+        })
+    }
 
+    fn parse_rql_from_first(&mut self) -> Result<RqlQuery> {
+        self.expect_keyword(Keyword::From)?;
+        let table = self.parse_table()?;
+        let (using_semantic, using_lexical) = self.parse_using_clause()?;
+        let filter = self.parse_filter_clause()?;
+        let order_by = self.parse_order_clause()?;
+        let (limit, offset) = self.parse_limit_clause()?;
+        self.expect_keyword(Keyword::Select)?;
+        let fields = self.parse_select_fields()?;
+        self.consume_semicolon();
+        Ok(RqlQuery {
+            fields,
+            table,
+            using_semantic,
+            using_lexical,
+            filter,
+            order_by,
+            limit,
+            offset,
+        })
+    }
+
+    fn parse_using_clause(&mut self) -> Result<(Option<String>, Option<String>)> {
         let mut using_semantic = None;
         let mut using_lexical = None;
         if self.peek_keyword(Keyword::Using) {
@@ -214,14 +263,19 @@ impl Parser {
                 }
             }
         }
+        Ok((using_semantic, using_lexical))
+    }
 
-        let mut filter = None;
+    fn parse_filter_clause(&mut self) -> Result<Option<FilterExpr>> {
         if self.peek_keyword(Keyword::Filter) {
             self.next();
-            filter = Some(self.parse_filter_expr()?);
+            Ok(Some(self.parse_filter_expr()?))
+        } else {
+            Ok(None)
         }
+    }
 
-        let mut order_by = None;
+    fn parse_order_clause(&mut self) -> Result<Option<(OrderBy, OrderDir)>> {
         if self.peek_keyword(Keyword::Order) {
             self.next();
             self.expect_keyword(Keyword::By)?;
@@ -241,9 +295,13 @@ impl Parser {
             } else {
                 OrderDir::Desc
             };
-            order_by = Some((order, dir));
+            Ok(Some((order, dir)))
+        } else {
+            Ok(None)
         }
+    }
 
+    fn parse_limit_clause(&mut self) -> Result<(Option<usize>, Option<usize>)> {
         let mut limit = None;
         let mut offset = None;
         if self.peek_keyword(Keyword::Limit) {
@@ -254,21 +312,13 @@ impl Parser {
                 offset = Some(self.expect_number()? as usize);
             }
         }
+        Ok((limit, offset))
+    }
 
+    fn consume_semicolon(&mut self) {
         if self.peek(Token::Semicolon) {
             self.next();
         }
-
-        Ok(RqlQuery {
-            fields,
-            table,
-            using_semantic,
-            using_lexical,
-            filter,
-            order_by,
-            limit,
-            offset,
-        })
     }
 
     fn parse_select_fields(&mut self) -> Result<Vec<SelectField>> {
@@ -629,6 +679,14 @@ mod tests {
 
     #[test]
     fn parse_basic_rql() {
+        let q = parse_rql("FROM doc FILTER doc.tag = 'x' LIMIT 2 SELECT doc.id;").unwrap();
+        assert_eq!(q.table, Table::Doc);
+        assert_eq!(q.limit, Some(2));
+        assert!(q.filter.is_some());
+    }
+
+    #[test]
+    fn parse_legacy_select_first_rql() {
         let q = parse_rql("SELECT doc.id FROM doc FILTER doc.tag = 'x' LIMIT 2;").unwrap();
         assert_eq!(q.table, Table::Doc);
         assert_eq!(q.limit, Some(2));

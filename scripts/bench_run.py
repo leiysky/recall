@@ -100,7 +100,7 @@ def main() -> int:
             str(recall_bin),
             "query",
             "--rql",
-            "SELECT chunk.text, doc.path FROM chunk USING semantic('needle') LIMIT 8;",
+            "FROM chunk USING semantic('needle') LIMIT 8 SELECT chunk.text, doc.path;",
             "--snapshot",
             args.snapshot,
             "--json",

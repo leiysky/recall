@@ -25,7 +25,7 @@ use clap_complete::Shell;
     version,
     about = "CLI-first hybrid search database",
     long_about = "Recall is a local, single-file database for deterministic retrieval over documents.\nIt supports hybrid semantic + lexical search, exact filters, and stable JSON output.\nCommands discover recall.toml by walking up from the current directory.",
-    after_help = "Examples:\n  recall init .\n  recall add . --glob \"**/*.{md,rs}\" --tag code\n  recall search \"retry backoff\" --filter \"doc.path GLOB '**/net/**'\" --json\n  recall query --rql \"SELECT chunk.text FROM chunk USING semantic('vector index') LIMIT 6;\"\n  recall context \"ordering rules\" --budget-tokens 800 --diversity 2\n  recall search \"foo\" --filter @filters.txt\n  recall query --rql @query.rql --json\n\nNotes:\n  - FILTER is exact; fields must be qualified (doc.* or chunk.*).\n  - Snapshot tokens use RFC3339 (e.g. 2026-02-02T00:00:00Z).\n  - Use --json/--jsonl for machine-readable output."
+    after_help = "Examples:\n  recall init .\n  recall add . --glob \"**/*.{md,rs}\" --tag code\n  recall search \"retry backoff\" --filter \"doc.path GLOB '**/net/**'\" --json\n  recall query --rql \"FROM chunk USING semantic('vector index') LIMIT 6 SELECT chunk.text;\"\n  recall context \"ordering rules\" --budget-tokens 800 --diversity 2\n  recall search \"foo\" --filter @filters.txt\n  recall query --rql @query.rql --json\n\nNotes:\n  - FILTER is exact; fields must be qualified (doc.* or chunk.*).\n  - RQL supports FROM-first (preferred) and legacy SELECT-first forms.\n  - Snapshot tokens use RFC3339 (e.g. 2026-02-02T00:00:00Z).\n  - Use --json/--jsonl for machine-readable output."
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -68,7 +68,7 @@ pub enum Commands {
     /// Run an RQL query
     #[command(
         long_about = "Execute a structured RQL query. Use --rql @file or --rql-stdin for long queries.",
-        after_help = "Examples:\n  recall query --rql \"SELECT doc.path FROM doc FILTER doc.tag = 'docs' LIMIT 10;\"\n  recall query --rql @query.rql --json\n  cat query.rql | recall query --rql-stdin --json"
+        after_help = "Examples:\n  recall query --rql \"FROM doc FILTER doc.tag = 'docs' LIMIT 10 SELECT doc.path;\"\n  recall query --rql @query.rql --json\n  cat query.rql | recall query --rql-stdin --json"
     )]
     Query(QueryArgs),
 

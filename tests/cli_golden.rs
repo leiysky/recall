@@ -167,7 +167,7 @@ fn golden_cli_outputs() {
     cmd.args([
         "query",
         "--rql",
-        "SELECT chunk.text, chunk.offset, doc.path FROM chunk USING semantic('recall') LIMIT 3;",
+        "FROM chunk USING semantic('recall') LIMIT 3 SELECT chunk.text, chunk.offset, doc.path;",
         "--json",
     ]);
     let query_json = run_json(&mut cmd, root);
@@ -179,7 +179,7 @@ fn golden_cli_outputs() {
     cmd.args([
         "query",
         "--rql",
-        "SELECT doc.path FROM doc FILTER doc.path LIKE '%docs%' LIMIT 2;",
+        "FROM doc FILTER doc.path LIKE '%docs%' LIMIT 2 SELECT doc.path;",
         "--json",
     ]);
     let query_structured_json = run_json(&mut cmd, root);
@@ -271,7 +271,7 @@ fn structured_query_default_ordering() {
     cmd.args([
         "query",
         "--rql",
-        "SELECT doc.path FROM doc FILTER doc.path GLOB '**/*.txt' LIMIT 10;",
+        "FROM doc FILTER doc.path GLOB '**/*.txt' LIMIT 10 SELECT doc.path;",
         "--json",
     ]);
     let query_json = run_json(&mut cmd, root);
@@ -314,7 +314,7 @@ fn structured_query_order_by_tiebreaks() {
     cmd.args([
         "query",
         "--rql",
-        "SELECT doc.path, doc.tag FROM doc FILTER doc.tag = \"docs\" ORDER BY doc.tag DESC LIMIT 10;",
+        "FROM doc FILTER doc.tag = \"docs\" ORDER BY doc.tag DESC LIMIT 10 SELECT doc.path, doc.tag;",
         "--json",
     ]);
     let query_json = run_json(&mut cmd, root);

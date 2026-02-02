@@ -72,11 +72,12 @@ RQL is a stable, AI-friendly SQL-like subset. It is designed to be predictable a
 
 ### Minimal Shape
 ```
-SELECT <fields> FROM <table>
+FROM <table>
 USING semantic(<text>) [, lexical(<text>)]
 FILTER <boolean-expr>
 ORDER BY <field|score> [ASC|DESC]
-LIMIT <n> [OFFSET <m>];
+LIMIT <n> [OFFSET <m>]
+SELECT <fields>;
 ```
 
 ### Guidelines
@@ -88,6 +89,7 @@ LIMIT <n> [OFFSET <m>];
 - If you need chunk text, query `chunk.text` from `chunk`.
 - If you only need document metadata, query the `doc` table.
 - Unknown `SELECT` fields are ignored in v0.1 (permissive).
+- Legacy `SELECT ... FROM ...` is still accepted for compatibility.
 
 ### Field Catalog (Initial)
 - `doc.id`, `doc.path`, `doc.mtime`, `doc.hash`, `doc.tag`, `doc.source`, `doc.meta`.
@@ -97,15 +99,17 @@ Metadata keys can be filtered via `doc.meta.<key>` (keys are normalized to lower
 
 ### Example Queries
 ```
-SELECT chunk.text, chunk.doc_id, score FROM chunk
+FROM chunk
 USING semantic("retry backoff")
 FILTER doc.tag = "docs" AND doc.path GLOB "**/api/**"
-LIMIT 6;
+LIMIT 6
+SELECT chunk.text, chunk.doc_id, score;
 
-SELECT doc.id, doc.path FROM doc
+FROM doc
 FILTER doc.tag IN ("policy", "security")
 ORDER BY doc.mtime DESC
-LIMIT 20;
+LIMIT 20
+SELECT doc.id, doc.path;
 ```
 
 ## Deterministic Ordering
@@ -122,7 +126,7 @@ LIMIT 20;
 - Filter from file:
   - `recall search "query" --filter @filters.txt --json`
 - Structured query:
-  - `recall query --rql "SELECT chunk.text FROM chunk USING semantic('foo') LIMIT 5;"`
+  - `recall query --rql "FROM chunk USING semantic('foo') LIMIT 5 SELECT chunk.text;"`
 - Long RQL via stdin:
   - `cat query.rql | recall query --rql-stdin --json`
 - Context assembly:
@@ -130,7 +134,7 @@ LIMIT 20;
 - JSONL streaming:
   - `recall search "query" --jsonl`
 - Snapshot paging:
-  - `recall query --rql "SELECT chunk.text FROM chunk USING semantic('foo') LIMIT 10 OFFSET 10;" --snapshot 2026-02-02T00:00:00Z --json`
+  - `recall query --rql "FROM chunk USING semantic('foo') LIMIT 10 OFFSET 10 SELECT chunk.text;" --snapshot 2026-02-02T00:00:00Z --json`
 - Export/import:
   - `recall export --out recall.jsonl --json`
   - `recall import recall.jsonl --json`
