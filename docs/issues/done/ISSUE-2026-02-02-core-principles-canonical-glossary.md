@@ -1,6 +1,6 @@
 # ISSUE-2026-02-02-core-principles-canonical-glossary
 
-Status: active
+Status: done
 Milestone: Milestone 1 — Determinism + Explainability
 Owner:
 Created: 2026-02-02

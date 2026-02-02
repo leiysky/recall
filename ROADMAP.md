@@ -23,7 +23,7 @@ Status: Principles-aligned plan (post-MVP)
 
 ### Milestone 1 — Determinism + Explainability
 - Canonicalize core principles across docs and add a glossary.
-  (issue: docs/issues/active/ISSUE-2026-02-02-core-principles-canonical-glossary.md)
+  (issue: docs/issues/done/ISSUE-2026-02-02-core-principles-canonical-glossary.md)
 - Add explicit `--snapshot` for search/query/context.
   (issue: docs/issues/open/ISSUE-2026-02-01-snapshot-flag-search-query-context.md)
 - Accept snapshots for reproducible pagination with `OFFSET`.
