@@ -1,10 +1,10 @@
 # ISSUE-2026-02-01-snapshot-pagination-offset
 
 Status: open
-Milestone: M2
+Milestone: Milestone 1 — Determinism + Explainability
 Owner:
 Created: 2026-02-01
-Updated: 2026-02-01
+Updated: 2026-02-02
 
 Context:
 - Accept snapshots for reproducible pagination with OFFSET.

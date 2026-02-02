@@ -1,10 +1,10 @@
 # ISSUE-2026-02-01-shell-completions-manpage-install
 
 Status: open
-Milestone: M6
+Milestone: Milestone 4 — AI-native Interface
 Owner:
 Created: 2026-02-01
-Updated: 2026-02-01
+Updated: 2026-02-02
 
 Context:
 - Shell completions, man page, and cargo install guidance.

@@ -1,10 +1,10 @@
 # ISSUE-2026-02-01-snapshot-flag-search-query-context
 
 Status: open
-Milestone: M2
+Milestone: Milestone 1 — Determinism + Explainability
 Owner:
 Created: 2026-02-01
-Updated: 2026-02-01
+Updated: 2026-02-02
 
 Context:
 - Add explicit --snapshot for search/query/context.

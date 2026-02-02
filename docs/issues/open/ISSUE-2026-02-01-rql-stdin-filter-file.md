@@ -1,10 +1,10 @@
 # ISSUE-2026-02-01-rql-stdin-filter-file
 
 Status: open
-Milestone: M6
+Milestone: Milestone 4 — AI-native Interface
 Owner:
 Created: 2026-02-01
-Updated: 2026-02-01
+Updated: 2026-02-02
 
 Context:
 - Support --rql-stdin / --filter @file for long agent queries.

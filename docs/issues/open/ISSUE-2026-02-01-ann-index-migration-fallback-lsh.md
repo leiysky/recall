@@ -1,10 +1,10 @@
 # ISSUE-2026-02-01-ann-index-migration-fallback-lsh
 
 Status: open
-Milestone: M4
+Milestone: Milestone 5 — Hybrid Retrieval Performance (Optional)
 Owner:
 Created: 2026-02-01
-Updated: 2026-02-01
+Updated: 2026-02-02
 
 Context:
 - Add migration for ANN index format; keep LSH as fallback.

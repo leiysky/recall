@@ -1,10 +1,10 @@
 # ISSUE-2026-02-01-doctor-fix-safer-compact
 
 Status: open
-Milestone: M6
+Milestone: Milestone 2 — Local-first Reliability
 Owner:
 Created: 2026-02-01
-Updated: 2026-02-01
+Updated: 2026-02-02
 
 Context:
 - Add recall doctor --fix and safer compact flows.

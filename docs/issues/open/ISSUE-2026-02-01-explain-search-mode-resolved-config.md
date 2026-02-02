@@ -1,10 +1,10 @@
 # ISSUE-2026-02-01-explain-search-mode-resolved-config
 
 Status: open
-Milestone: M3
+Milestone: Milestone 1 — Determinism + Explainability
 Owner:
 Created: 2026-02-01
-Updated: 2026-02-01
+Updated: 2026-02-02
 
 Context:
 - Add --explain diagnostics for effective search mode and resolved config (weights, ANN bits).
