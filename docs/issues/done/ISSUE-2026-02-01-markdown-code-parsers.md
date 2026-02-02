@@ -1,6 +1,6 @@
 # ISSUE-2026-02-01-markdown-code-parsers
 
-Status: open
+Status: done
 Milestone: Milestone 3 — Context as Managed Resource
 Owner:
 Created: 2026-02-01
@@ -15,7 +15,8 @@ Acceptance Criteria:
 Out of Scope:
 - TBD
 Notes:
+- Merged into docs/issues/open/ISSUE-2026-02-01-structure-aware-chunking.md.
 
 Links:
 - docs/history/decisions/ADR-2026-02-01-markdown-code-parsers.md
-- docs/progress/2026/2026-02-01.md
+- docs/progress/2026/2026-02-02.md
