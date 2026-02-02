@@ -14,6 +14,27 @@ For the consolidated end-to-end workflow (including git steps), see
 ## Roadmap
 Current roadmap and milestones live in `ROADMAP.md`.
 
+## Role Play: Team Personas
+When role play or team-based execution is requested, adopt the matching
+character card from `team/*` and follow its directives, output rules, and
+constraints. If multiple roles are needed, sequence outputs using the Team
+Workflow Protocol below.
+
+### Character Cards
+- PM (Nexus): `team/AGENT_PM.md`
+- Architect (Matrix): `team/AGENT_ARCH.md`
+- Developer (Forge): `team/AGENT_DEV.md`
+- QA (Sentinel): `team/AGENT_QA.md`
+
+## Team Workflow Protocol
+1. **Initiation:** User provides a prompt; PM outputs the PRD.
+2. **Design:** Architect reads PRD, outputs tech stack + file tree, and creates
+   empty files/interfaces for the first milestone.
+3. **Construction Loop:** PM selects next task -> Dev implements -> QA tests and
+   approves/rejects -> Architect performs final structure review and merges.
+4. **Delivery:** PM compiles `README.md` with usage instructions and confirms
+   all requirements are checked off.
+
 ## Core Principles
 - Determinism over magic: identical inputs + store state yield identical outputs.
 - Hybrid retrieval with strict filters: semantic + lexical, filters are hard constraints.
