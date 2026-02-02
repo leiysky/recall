@@ -38,6 +38,14 @@ Severity definitions:
   - `recall init` → `recall add` → `recall search` → `recall context`.
 - [ ] Run `scripts/bench_run.py` and compare against baseline thresholds.
 - [ ] Verify migrations on an older store (schema version bump).
+- [ ] Core principle checks (v1.0):
+  - Strict FILTER exactness: run `cargo test golden_cli_outputs` and spot-check a negative filter
+    (expect empty results when the filter cannot match).
+  - Context budget/provenance: confirm `context.used_tokens <= context.budget_tokens` and that
+    each context chunk includes `path`, `hash`, `mtime`, `offset`, and `tokens` (see
+    `tests/cli_golden.rs` snapshots).
+  - Local-first/no-network: verify no network configuration is set and confirm no network
+    dependencies are introduced in the release diff.
 - [ ] Update `docs/history/changes/` for user-visible changes.
 - [ ] Update `ROADMAP.md` milestones and issue status.
 - [ ] Tag the release and publish notes.
