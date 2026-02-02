@@ -1,10 +1,10 @@
 # ISSUE-2026-02-01-json-stats-corpus-memory
 
 Status: open
-Milestone: M3
+Milestone: Milestone 3 — Context as Managed Resource
 Owner:
 Created: 2026-02-01
-Updated: 2026-02-01
+Updated: 2026-02-02
 
 Context:
 - Improve JSON stats for corpus and memory usage.

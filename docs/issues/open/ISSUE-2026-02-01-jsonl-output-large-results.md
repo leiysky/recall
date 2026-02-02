@@ -1,10 +1,10 @@
 # ISSUE-2026-02-01-jsonl-output-large-results
 
 Status: open
-Milestone: M6
+Milestone: Milestone 3 — Context as Managed Resource
 Owner:
 Created: 2026-02-01
-Updated: 2026-02-01
+Updated: 2026-02-02
 
 Context:
 - Offer optional JSONL output for large result sets.

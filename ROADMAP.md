@@ -1,6 +1,6 @@
 # Recall Roadmap
 
-Date: 2026-02-01
+Date: 2026-02-02
 Status: Principles-aligned plan (post-MVP)
 
 ## Done
@@ -16,6 +16,8 @@ Status: Principles-aligned plan (post-MVP)
 - Squashed local main history before merge.
 - Enforced deterministic tie-breaks for ORDER BY and search results.
 - Added squash/rebase rule to WORKFLOWS.
+- Backlog milestone alignment across issue metadata.
+  (issue: docs/issues/done/ISSUE-2026-02-02-backlog-milestone-alignment.md)
 
 ## Next Milestones (Ordered by principles)
 

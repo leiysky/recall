@@ -1,10 +1,10 @@
 # ISSUE-2026-02-01-json-lexical-sanitization-details
 
 Status: open
-Milestone: M3
+Milestone: Milestone 1 — Determinism + Explainability
 Owner:
 Created: 2026-02-01
-Updated: 2026-02-01
+Updated: 2026-02-02
 
 Context:
 - Include lexical sanitization details in --json when FTS5 fallback is used.

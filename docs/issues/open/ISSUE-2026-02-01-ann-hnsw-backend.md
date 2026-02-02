@@ -1,10 +1,10 @@
 # ISSUE-2026-02-01-ann-hnsw-backend
 
 Status: open
-Milestone: M4
+Milestone: Milestone 5 — Hybrid Retrieval Performance (Optional)
 Owner:
 Created: 2026-02-01
-Updated: 2026-02-01
+Updated: 2026-02-02
 
 Context:
 - Replace LSH shortlist with HNSW (or equivalent ANN backend).

@@ -1,10 +1,10 @@
 # ISSUE-2026-02-01-release-checklist-versioning-policy
 
 Status: open
-Milestone: M6
+Milestone: Milestone 2 — Local-first Reliability
 Owner:
 Created: 2026-02-01
-Updated: 2026-02-01
+Updated: 2026-02-02
 
 Context:
 - Publish a release checklist and versioning policy.

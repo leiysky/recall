@@ -1,10 +1,10 @@
 # ISSUE-2026-02-01-explain-cache-hints-candidates
 
 Status: open
-Milestone: M3
+Milestone: Milestone 1 — Determinism + Explainability
 Owner:
 Created: 2026-02-01
-Updated: 2026-02-01
+Updated: 2026-02-02
 
 Context:
 - Add cache hints and candidate counts in --explain.
