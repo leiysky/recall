@@ -11,11 +11,12 @@ Recall is a CLI-first, hybrid search database for AI agents working with large c
 - Export/import for reproducible datasets.
 
 ## Core Principles
-- Determinism over magic: identical inputs + store state yield identical outputs.
-- Hybrid retrieval with strict filters: semantic + lexical, filters are hard constraints.
-- Local-first, zero-ops: one file, offline by default, no required services.
-- Context as a managed resource: hard budgets, deterministic packing, provenance.
-- AI-native interface: stable RQL + CLI + JSON outputs.
+Canonical definitions live in `DESIGN.md` under Core Principles.
+- Determinism over magic: identical inputs + store state yield identical outputs, including ordering and context assembly.
+- Hybrid retrieval with strict filters: semantic + lexical ranking is allowed, but FILTER constraints are exact and non-negotiable.
+- Local-first, zero-ops: single-file `recall.db`, offline by default, no required services.
+- Context as a managed resource: hard token budgets, deterministic packing, and provenance for every chunk.
+- AI-native interface: CLI and stable RQL are the source of truth; JSON outputs are stable for tooling.
 
 ## What Recall Is For
 Recall is a local, deterministic retrieval layer for agents and tools that need

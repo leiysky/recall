@@ -7,11 +7,17 @@ Status: Draft (principles-first)
 Recall is a local, single-file, CLI-first document store for AI agents. It provides deterministic, explainable hybrid retrieval with strict filters and builds token-budgeted context windows via a stable RQL interface.
 
 ## Core Principles
-1. Determinism over magic: identical inputs and store state produce identical outputs.
-2. Hybrid retrieval with strict filters: semantic + lexical, with exact filters as hard constraints.
-3. Local-first, zero-ops: one file, offline by default, no required services.
-4. Context as a managed resource: hard budgets, deterministic packing, provenance.
-5. AI-native interface: stable RQL + CLI as the source of truth, with JSON output for tooling.
+Canonical source: this section defines the core principles and terms; other docs should link here.
+1. Determinism over magic: identical inputs + store state yield identical outputs, including ordering and context assembly.
+2. Hybrid retrieval with strict filters: semantic + lexical ranking is allowed, but FILTER constraints are exact and non-negotiable.
+3. Local-first, zero-ops: single-file `recall.db`, offline by default, no required services.
+4. Context as a managed resource: hard token budgets, deterministic packing, and provenance for every chunk.
+5. AI-native interface: CLI and stable RQL are the source of truth; JSON outputs are stable for tooling.
+
+### Core Terms (Glossary)
+- Strict filters: FILTER predicates are exact; no semantic inference, and any result must satisfy them.
+- Deterministic packing: context assembly selects, orders, and truncates chunks in a fixed, documented way under a hard token budget.
+- Provenance: each chunk retains path, offsets, hash, and mtime for traceability.
 
 ## Scope (v0.1)
 - Single-file store `recall.db` (SQLite-backed).

@@ -36,11 +36,12 @@ Workflow Protocol below.
    all requirements are checked off.
 
 ## Core Principles
-- Determinism over magic: identical inputs + store state yield identical outputs.
-- Hybrid retrieval with strict filters: semantic + lexical, filters are hard constraints.
-- Local-first, zero-ops: single-file `recall.db`, offline by default.
-- Context as a managed resource: hard budgets, deterministic packing, provenance.
-- AI-native interface: CLI + RQL + stable JSON outputs.
+Canonical definitions live in `DESIGN.md` under Core Principles.
+- Determinism over magic: identical inputs + store state yield identical outputs, including ordering and context assembly.
+- Hybrid retrieval with strict filters: semantic + lexical ranking is allowed, but FILTER constraints are exact and non-negotiable.
+- Local-first, zero-ops: single-file `recall.db`, offline by default, no required services.
+- Context as a managed resource: hard token budgets, deterministic packing, and provenance for every chunk.
+- AI-native interface: CLI and stable RQL are the source of truth; JSON outputs are stable for tooling.
 
 ## Core Concepts
 - Recall stores two logical tables: `doc` and `chunk`.
