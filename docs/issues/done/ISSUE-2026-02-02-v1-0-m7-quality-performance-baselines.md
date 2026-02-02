@@ -1,6 +1,6 @@
 # ISSUE-2026-02-02-v1-0-m7-quality-performance-baselines
 
-Status: open
+Status: done
 Milestone: v1.0 Milestone 7 — Quality + Performance Baselines
 Owner: Nexus
 Created: 2026-02-02
@@ -29,6 +29,8 @@ Out of Scope:
 
 Notes:
 - Align metrics with PRD non-functional requirements.
+- Benchmark spec and baseline: docs/benchmarks/README.md and docs/benchmarks/baseline-2026-02-02.md.
+- Determinism checks: tests/determinism.rs (cargo test deterministic_outputs).
 
 Links:
 - ROADMAP.md

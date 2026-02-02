@@ -177,6 +177,10 @@ Use the `./x` helper for consistent workflows:
 ./x clippy -- -D warnings
 ```
 
+## Benchmarks
+See `docs/benchmarks/README.md` for the benchmark dataset, baseline numbers,
+and regression thresholds.
+
 ## Workflows
 See `WORKFLOWS.md` for temporary (volatile) workflows and end-to-end examples
 of using Recall to develop Recall.

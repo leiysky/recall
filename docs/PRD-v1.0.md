@@ -46,9 +46,9 @@ upgrade guarantees, with a clear target window and release gates.
   see ISSUE-2026-02-02-v1-0-m6-interface-freeze-compatibility,
   ISSUE-2026-02-02-v1-0-m7-quality-performance-baselines,
   ISSUE-2026-02-02-v1-0-m8-release-readiness)
-- [ ] T2: Define benchmark dataset/generator and baseline metrics
+- [x] T2: Define benchmark dataset/generator and baseline metrics
   (Acceptance Criteria: benchmark spec in docs, baseline numbers recorded,
-  regression thresholds defined)
+  regression thresholds defined; see docs/benchmarks/README.md)
 - [x] T3: Draft interface freeze + compatibility matrix (Acceptance Criteria:
   published matrix and upgrade guidance documented; see docs/COMPATIBILITY.md)
 - [ ] T4: Define release candidate gate (Acceptance Criteria: v1.0 gate and
