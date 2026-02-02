@@ -1,6 +1,6 @@
 # Recall Roadmap
 
-Date: 2026-02-01
+Date: 2026-02-02
 Status: Principles-aligned plan (post-MVP)
 
 ## Done
@@ -60,6 +60,8 @@ Status: Principles-aligned plan (post-MVP)
   (issue: docs/issues/open/ISSUE-2026-02-01-cli-lexical-parsing-controls.md)
 - Shell completions, man page, and `cargo install` guidance.
   (issue: docs/issues/open/ISSUE-2026-02-01-shell-completions-manpage-install.md)
+- Add optional Markdown metadata extraction for doc-level filtering.
+  (issue: docs/issues/active/ISSUE-2026-02-02-markdown-metadata-extraction.md)
 
 ### Milestone 5 — Hybrid Retrieval Performance (Optional)
 - Replace LSH shortlist with HNSW (or equivalent ANN backend).

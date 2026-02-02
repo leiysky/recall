@@ -1,6 +1,6 @@
 # Recall Design Doc
 
-Date: 2026-02-01
+Date: 2026-02-02
 Status: Draft (principles-first)
 
 ## Product Summary
@@ -97,6 +97,17 @@ Notes:
 ## Data Model (Logical)
 - `doc`: `id`, `path`, `mtime`, `hash`, `tag`, `source`, `deleted`.
 - `chunk`: `id`, `doc_id`, `offset`, `tokens`, `text`, `embedding`, `deleted`.
+
+## Document Metadata (Planned)
+- Problem: important fields (e.g., Status, Milestone) are embedded in Markdown
+  and cannot be filtered without free-text parsing.
+- Add an opt-in ingest flag (e.g., `--extract-meta`) to parse deterministic
+  front matter or top-of-file `Key: Value` blocks.
+- Store extracted fields as a doc-level metadata map (JSON) and expose them in
+  `--json` outputs.
+- RQL should allow exact filters on metadata keys (e.g., `doc.meta.milestone`),
+  with missing keys treated as null.
+- Requires schema versioning and migration support; not part of v0.1.
 
 ## JSON Output (Stable)
 Top-level fields:
