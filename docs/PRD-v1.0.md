@@ -41,8 +41,11 @@ upgrade guarantees, with a clear target window and release gates.
   configuration, documented in release notes.
 
 ## Tasks
-- [ ] T1: Break v1.0 plan into milestone issues (Acceptance Criteria: separate
-  M6–M8 issue files with scope + acceptance criteria, linked from `ROADMAP.md`)
+- [x] T1: Break v1.0 plan into milestone issues (Acceptance Criteria: separate
+  M6–M8 issue files with scope + acceptance criteria, linked from `ROADMAP.md`;
+  see ISSUE-2026-02-02-v1-0-m6-interface-freeze-compatibility,
+  ISSUE-2026-02-02-v1-0-m7-quality-performance-baselines,
+  ISSUE-2026-02-02-v1-0-m8-release-readiness)
 - [ ] T2: Define benchmark dataset/generator and baseline metrics
   (Acceptance Criteria: benchmark spec in docs, baseline numbers recorded,
   regression thresholds defined)
