@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::BTreeMap;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -485,7 +485,7 @@ fn lexical_search(
 ) -> Result<(Vec<ScoredItem>, Option<String>)> {
     let run = |query: &str| -> Result<Vec<ScoredItem>> {
         let sql = format!(
-            "SELECT chunk.id, chunk.doc_id, chunk.offset, chunk.tokens, chunk.text,\n                doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source,\n                bm25(chunk_fts) as bm25\n         FROM chunk_fts\n         JOIN chunk ON chunk_fts.rowid = chunk.rowid\n         JOIN doc ON doc.id = chunk.doc_id\n         WHERE chunk.deleted=0 AND doc.deleted=0 AND ({}) AND chunk_fts MATCH ?\n         ORDER BY bm25\n         LIMIT ?",
+            "SELECT chunk.id, chunk.doc_id, chunk.offset, chunk.tokens, chunk.text,\n                doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source,\n                bm25(chunk_fts) as bm25\n         FROM chunk_fts\n         JOIN chunk ON chunk_fts.rowid = chunk.rowid\n         JOIN doc ON doc.id = chunk.doc_id\n         WHERE chunk.deleted=0 AND doc.deleted=0 AND ({}) AND chunk_fts MATCH ?\n         ORDER BY bm25 ASC, doc.path ASC, chunk.offset ASC, chunk.id ASC\n         LIMIT ?",
             filter_sql
         );
 
@@ -636,11 +636,7 @@ fn semantic_search_lsh(
         });
     }
 
-    scored.sort_by(|a, b| {
-        b.score
-            .partial_cmp(&a.score)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+    sort_by_score_with_tiebreak(&mut scored, false);
     scored.truncate(k);
     Ok(scored)
 }
@@ -675,11 +671,7 @@ fn semantic_search_linear(
         });
     }
 
-    scored.sort_by(|a, b| {
-        b.score
-            .partial_cmp(&a.score)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+    sort_by_score_with_tiebreak(&mut scored, false);
     scored.truncate(k);
     Ok(scored)
 }
@@ -690,64 +682,54 @@ fn combine_results(
     semantic: Vec<ScoredItem>,
     k: usize,
 ) -> Vec<ScoredItem> {
-    if lexical.is_empty() {
-        return semantic.into_iter().take(k).collect();
-    }
-    if semantic.is_empty() {
-        return lexical.into_iter().take(k).collect();
-    }
+    let mut items = if lexical.is_empty() && semantic.is_empty() {
+        Vec::new()
+    } else if lexical.is_empty() {
+        semantic
+    } else if semantic.is_empty() {
+        lexical
+    } else {
+        let mut map: HashMap<String, ScoredItem> = HashMap::new();
+        for item in lexical {
+            map.insert(item.chunk.as_ref().unwrap().id.clone(), item);
+        }
+        for item in semantic {
+            let key = item.chunk.as_ref().unwrap().id.clone();
+            map.entry(key)
+                .and_modify(|e| {
+                    e.semantic = item.semantic;
+                    e.score = 0.0;
+                })
+                .or_insert(item);
+        }
 
-    let mut map: HashMap<String, ScoredItem> = HashMap::new();
-    for item in lexical {
-        map.insert(item.chunk.as_ref().unwrap().id.clone(), item);
-    }
-    for item in semantic {
-        let key = item.chunk.as_ref().unwrap().id.clone();
-        map.entry(key)
-            .and_modify(|e| {
-                e.semantic = item.semantic;
-                e.score = 0.0;
+        map.into_values()
+            .map(|mut item| {
+                let lex = item.lexical.unwrap_or(0.0);
+                let sem = item.semantic.unwrap_or(0.0);
+                let score = config.bm25_weight * lex + config.vector_weight * sem;
+                item.score = score;
+                item
             })
-            .or_insert(item);
-    }
+            .collect()
+    };
 
-    let mut items: Vec<ScoredItem> = map
-        .into_values()
-        .map(|mut item| {
-            let lex = item.lexical.unwrap_or(0.0);
-            let sem = item.semantic.unwrap_or(0.0);
-            let score = config.bm25_weight * lex + config.vector_weight * sem;
-            item.score = score;
-            item
-        })
-        .collect();
-
-    items.sort_by(|a, b| {
-        b.score
-            .partial_cmp(&a.score)
-            .unwrap_or(std::cmp::Ordering::Equal)
-            .then_with(|| a.doc.path.cmp(&b.doc.path))
-            .then_with(|| {
-                let ao = a.chunk.as_ref().map(|c| c.offset).unwrap_or(0);
-                let bo = b.chunk.as_ref().map(|c| c.offset).unwrap_or(0);
-                ao.cmp(&bo)
-            })
-            .then_with(|| {
-                let aid = a.chunk.as_ref().map(|c| c.id.as_str()).unwrap_or("");
-                let bid = b.chunk.as_ref().map(|c| c.id.as_str()).unwrap_or("");
-                aid.cmp(bid)
-            })
-    });
-
+    sort_by_score_with_tiebreak(&mut items, false);
     items.truncate(k);
     items
 }
 
 fn group_by_doc(result: SearchResult, fields: Vec<SelectField>) -> SearchResult {
-    let mut map: BTreeMap<String, ScoredItem> = BTreeMap::new();
+    let mut map: HashMap<String, ScoredItem> = HashMap::new();
     for item in result.items {
-        let entry = map
-            .entry(item.doc.id.clone())
+        map.entry(item.doc.id.clone())
+            .and_modify(|entry| {
+                if item.score > entry.score {
+                    entry.score = item.score;
+                    entry.lexical = item.lexical;
+                    entry.semantic = item.semantic;
+                }
+            })
             .or_insert_with(|| ScoredItem {
                 score: item.score,
                 lexical: item.lexical,
@@ -755,11 +737,9 @@ fn group_by_doc(result: SearchResult, fields: Vec<SelectField>) -> SearchResult 
                 doc: item.doc.clone(),
                 chunk: None,
             });
-        if item.score > entry.score {
-            entry.score = item.score;
-        }
     }
-    let items = map.into_values().collect();
+    let mut items: Vec<ScoredItem> = map.into_values().collect();
+    sort_by_score_with_tiebreak(&mut items, false);
     SearchResult {
         items,
         selected_fields: Some(fields),
@@ -904,10 +884,11 @@ fn field_to_sql_for_table(field: &FieldRef, table: Table) -> Result<String> {
 }
 
 fn order_clause(q: &RqlQuery, table: Table) -> Result<String> {
-    let default_order = match table {
-        Table::Doc => "ORDER BY doc.path ASC, doc.id ASC",
-        Table::Chunk => "ORDER BY doc.path ASC, chunk.offset ASC, chunk.id ASC",
+    let tie_break = match table {
+        Table::Doc => "doc.path ASC, doc.id ASC",
+        Table::Chunk => "doc.path ASC, chunk.offset ASC, chunk.id ASC",
     };
+    let default_order = format!("ORDER BY {tie_break}");
 
     let Some((order_by, dir)) = &q.order_by else {
         return Ok(default_order.to_string());
@@ -917,10 +898,10 @@ fn order_clause(q: &RqlQuery, table: Table) -> Result<String> {
         OrderDir::Desc => "DESC",
     };
     match order_by {
-        OrderBy::Score => Ok(default_order.to_string()),
+        OrderBy::Score => Ok(default_order),
         OrderBy::Field(field) => {
             let col = field_to_sql_for_table(field, table)?;
-            Ok(format!("ORDER BY {} {}", col, dir_sql))
+            Ok(format!("ORDER BY {} {}, {}", col, dir_sql, tie_break))
         }
     }
 }
@@ -947,11 +928,12 @@ fn apply_ordering(items: &mut [ScoredItem], order_by: OrderBy, dir: OrderDir) {
     match order_by {
         OrderBy::Score => {
             items.sort_by(|a, b| {
-                let ord = a
-                    .score
-                    .partial_cmp(&b.score)
-                    .unwrap_or(std::cmp::Ordering::Equal);
-                if asc { ord } else { ord.reverse() }
+                let ord = score_cmp(a, b, asc);
+                if ord == Ordering::Equal {
+                    deterministic_tiebreak(a, b)
+                } else {
+                    ord
+                }
             });
         }
         OrderBy::Field(field) => {
@@ -959,9 +941,44 @@ fn apply_ordering(items: &mut [ScoredItem], order_by: OrderBy, dir: OrderDir) {
                 let va = field_value(a, &field);
                 let vb = field_value(b, &field);
                 let ord = va.cmp(&vb);
-                if asc { ord } else { ord.reverse() }
+                let ord = if asc { ord } else { ord.reverse() };
+                if ord == Ordering::Equal {
+                    deterministic_tiebreak(a, b)
+                } else {
+                    ord
+                }
             });
         }
+    }
+}
+
+fn sort_by_score_with_tiebreak(items: &mut [ScoredItem], asc: bool) {
+    items.sort_by(|a, b| {
+        let ord = score_cmp(a, b, asc);
+        if ord == Ordering::Equal {
+            deterministic_tiebreak(a, b)
+        } else {
+            ord
+        }
+    });
+}
+
+fn score_cmp(a: &ScoredItem, b: &ScoredItem, asc: bool) -> Ordering {
+    let ord = a.score.partial_cmp(&b.score).unwrap_or(Ordering::Equal);
+    if asc { ord } else { ord.reverse() }
+}
+
+fn deterministic_tiebreak(a: &ScoredItem, b: &ScoredItem) -> Ordering {
+    let ord = a.doc.path.cmp(&b.doc.path);
+    if ord != Ordering::Equal {
+        return ord;
+    }
+    match (&a.chunk, &b.chunk) {
+        (Some(achunk), Some(bchunk)) => achunk
+            .offset
+            .cmp(&bchunk.offset)
+            .then_with(|| achunk.id.cmp(&bchunk.id)),
+        _ => a.doc.id.cmp(&b.doc.id),
     }
 }
 

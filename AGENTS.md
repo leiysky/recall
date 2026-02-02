@@ -14,6 +14,13 @@ For the consolidated end-to-end workflow (including git steps), see
 ## Roadmap
 Current roadmap and milestones live in `ROADMAP.md`.
 
+## Core Principles
+- Determinism over magic: identical inputs + store state yield identical outputs.
+- Hybrid retrieval with strict filters: semantic + lexical, filters are hard constraints.
+- Local-first, zero-ops: single-file `recall.db`, offline by default.
+- Context as a managed resource: hard budgets, deterministic packing, provenance.
+- AI-native interface: CLI + RQL + stable JSON outputs.
+
 ## Core Concepts
 - Recall stores two logical tables: `doc` and `chunk`.
 - The store is a single local file (SQLite-like): `recall.db`.
@@ -48,6 +55,7 @@ LIMIT <n> [OFFSET <m>];
 - Prefer `LIMIT` for bounded results.
 - If you need chunk text, query `chunk.text` from `chunk`.
 - If you only need document metadata, query the `doc` table.
+- Unknown `SELECT` fields are ignored in v0.1 (permissive).
 
 ### Field Catalog (Initial)
 - `doc.id`, `doc.path`, `doc.mtime`, `doc.hash`, `doc.tag`, `doc.source`.
@@ -66,6 +74,12 @@ FILTER doc.tag IN ("policy", "security")
 ORDER BY doc.mtime DESC
 LIMIT 20;
 ```
+
+## Deterministic Ordering
+- With `USING` and `FROM chunk`: `score DESC`, then `doc.path ASC`, `chunk.offset ASC`, `chunk.id ASC`.
+- With `USING` and `FROM doc`: `score` is max chunk score for the doc, then `doc.path ASC`, `doc.id ASC`.
+- Without `USING`: `doc.path ASC` (and `chunk.offset ASC`, `chunk.id ASC` for chunks).
+- `ORDER BY` respects the requested field, but tie-breaks remain deterministic.
 
 ## CLI Patterns
 - Interactive search:

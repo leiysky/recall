@@ -6,9 +6,16 @@ Recall is a CLI-first, hybrid search database for AI agents working with large c
 - CLI and RQL are the stable, top-level interfaces.
 - Single-file local store (`recall.db`) backed by SQLite + FTS5.
 - Hybrid retrieval: lexical (FTS5 bm25) + semantic embeddings.
-- Deterministic context assembly with token budgets and provenance.
+- Deterministic ordering and context assembly with token budgets and provenance.
 - JSON outputs with schema validation and golden tests.
 - Export/import for reproducible datasets.
+
+## Core Principles
+- Determinism over magic: identical inputs + store state yield identical outputs.
+- Hybrid retrieval with strict filters: semantic + lexical, filters are hard constraints.
+- Local-first, zero-ops: one file, offline by default, no required services.
+- Context as a managed resource: hard budgets, deterministic packing, provenance.
+- AI-native interface: stable RQL + CLI + JSON outputs.
 
 ## What Recall Is For
 Recall is a local, deterministic retrieval layer for agents and tools that need
@@ -97,6 +104,11 @@ ORDER BY <field|score> [ASC|DESC]
 LIMIT <n> [OFFSET <m>];
 ```
 
+Notes:
+- `USING` enables semantic/lexical search; without it, queries are strict filters only.
+- `FILTER` is exact and fields must be qualified (`doc.*`, `chunk.*`).
+- Unknown `SELECT` fields are ignored in v0.1 (permissive).
+
 Example:
 ```
 SELECT chunk.text, chunk.doc_id, score FROM chunk
@@ -117,7 +129,7 @@ FILTER doc.tag = "docs" AND doc.path GLOB "**/api/**"
 ```
 
 ## JSON Output
-All commands support `--json` with a stable schema. Errors are machine-parseable and include `code` and `message`. A `stats.snapshot` token is provided as a reproducibility hint; snapshot paging is planned.
+All commands support `--json` with a stable schema (including `schema_version`). Errors are machine-parseable and include `code` and `message`. A `stats.snapshot` token is provided as a reproducibility hint; snapshot paging is planned.
 
 ## Export / Import
 Use JSONL for portability:

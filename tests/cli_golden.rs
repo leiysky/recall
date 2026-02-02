@@ -271,3 +271,52 @@ fn structured_query_default_ordering() {
         .collect();
     assert_eq!(paths, vec!["docs/a.txt", "docs/b.txt"]);
 }
+
+#[test]
+fn structured_query_order_by_tiebreaks() {
+    let schema = load_schema();
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    fs::create_dir_all(root.join("docs")).expect("docs dir");
+    fs::write(root.join("docs/b.txt"), "beta\n").expect("write file");
+    fs::write(root.join("docs/a.txt"), "alpha\n").expect("write file");
+
+    let mut cmd = recall_cmd();
+    cmd.args(["init", "."]);
+    assert!(cmd.current_dir(root).output().unwrap().status.success());
+
+    let mut cmd = recall_cmd();
+    cmd.args([
+        "add",
+        "docs",
+        "--glob",
+        "**/*.txt",
+        "--tag",
+        "docs",
+        "--json",
+    ]);
+    let add_json = run_json(&mut cmd, root);
+    assert_schema(&schema, &add_json);
+
+    let mut cmd = recall_cmd();
+    cmd.args([
+        "query",
+        "--rql",
+        "SELECT doc.path, doc.tag FROM doc FILTER doc.tag = \"docs\" ORDER BY doc.tag DESC LIMIT 10;",
+        "--json",
+    ]);
+    let query_json = run_json(&mut cmd, root);
+    assert_schema(&schema, &query_json);
+
+    let results = query_json
+        .get("results")
+        .and_then(|v| v.as_array())
+        .expect("results array");
+    let paths: Vec<&str> = results
+        .iter()
+        .filter_map(|item| item.get("doc"))
+        .filter_map(|doc| doc.get("path"))
+        .filter_map(|path| path.as_str())
+        .collect();
+    assert_eq!(paths, vec!["docs/a.txt", "docs/b.txt"]);
+}

@@ -13,6 +13,7 @@ Status: Principles-aligned plan (post-MVP)
 - Hardened lexical search for FTS5 syntax errors with sanitization + warnings, plus tests.
 - Export/import with snapshot hints in JSON stats.
 - Enforced default git workflow in DEVELOPMENT_RULES.
+- Enforced deterministic tie-breaks for ORDER BY and search results.
 
 ## Next Milestones (Ordered by principles)
 
