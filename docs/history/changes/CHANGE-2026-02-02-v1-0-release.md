@@ -7,12 +7,14 @@ Summary:
 - Interface freeze for CLI/RQL/JSON schema and published compatibility matrix.
 - Benchmark dataset, baselines, regression thresholds, and determinism checks.
 - Release readiness checklist with RC gate definitions (including core principles).
+- Release archives include docs/scripts referenced in README.
 - Release tag: pending review
 
 User impact:
 - Stable interfaces for v1.0 tooling and agent integrations.
 - Reproducible performance baselines and deterministic outputs.
 - Clear upgrade guidance and compatibility expectations.
+- Release archives ship docs/scripts; binary-only installs may not include them.
 - Strict filters remain exact, and context budget/provenance guarantees remain enforced.
 
 Migration:

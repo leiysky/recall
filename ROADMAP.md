@@ -24,6 +24,10 @@ Target window: 2026-03-15 to 2026-04-30.
 
 ### Milestone 8 — Release Readiness
 - Complete documentation updates (README, DESIGN, AGENTS, WORKFLOWS).
+- README accuracy fixes from user feedback.
+  (issue: docs/issues/done/ISSUE-2026-02-02-readme-doc-fixes.md)
+- Package release artifacts with docs/scripts referenced in README.
+  (issue: docs/issues/done/ISSUE-2026-02-02-release-packaging-docs.md)
 - Produce a release candidate checklist with sign-off criteria and zero P0/P1 open issues.
 - Cut v1.0 release notes and tag the release.
   (issue: docs/issues/active/ISSUE-2026-02-02-v1-0-m8-release-readiness.md)
