@@ -7,17 +7,18 @@ Status: Draft (principles-first)
 Recall is a local, single-file, CLI-first document store for AI agents. It provides deterministic, explainable hybrid retrieval with strict filters and builds token-budgeted context windows via a stable RQL interface.
 
 ## Core Principles
-Canonical source: this section defines the core principles and terms; other docs should link here.
+Canonical source: this section defines the core principles and terms. Other docs should link here.
 1. Determinism over magic: identical inputs + store state yield identical outputs, including ordering and context assembly.
 2. Hybrid retrieval with strict filters: semantic + lexical ranking is allowed, but FILTER constraints are exact and non-negotiable.
 3. Local-first, zero-ops: single-file `recall.db`, offline by default, no required services.
 4. Context as a managed resource: hard token budgets, deterministic packing, and provenance for every chunk.
 5. AI-native interface: CLI and stable RQL are the source of truth; JSON outputs are stable for tooling.
+6. UNIX-style composability: CLI-first, scriptable, and composable outputs with stable JSON for tooling.
 
 ### Core Terms (Glossary)
-- Strict filters: FILTER predicates are exact; no semantic inference, and any result must satisfy them.
+- Strict filters: FILTER predicates are exact; no semantic inference, and every result must satisfy them.
 - Deterministic packing: context assembly selects, orders, and truncates chunks in a fixed, documented way under a hard token budget.
-- Provenance: each chunk retains path, offsets, hash, and mtime for traceability.
+- Provenance: each chunk retains path, offset, hash, and mtime for traceability.
 
 ## Scope (v0.1)
 - Single-file store `recall.db` (SQLite-backed).
@@ -30,7 +31,7 @@ Canonical source: this section defines the core principles and terms; other docs
 - Snapshot tokens for reproducible paging.
 - On-disk schema versioning + migrations.
 - Optional metadata extraction from Markdown headers/front matter.
-- Structure-aware chunking (markdown headings and code blocks).
+- Structure-aware chunking (Markdown headings and code blocks).
 
 ## Non-goals
 - Hosted multi-tenant service.
@@ -96,18 +97,18 @@ Notes:
 - Semantic search via embeddings (default deterministic hash).
 - Scores are normalized and combined with explicit weights from config.
 - Filters are strict and never invoke semantic inference.
-- ANN backend is configurable (`lsh`, `hnsw`, or `linear`) with LSH fallback.
+- ANN backend is configurable (`lsh`, `hnsw`, `linear`) with LSH fallback.
 
 ## Context Assembly
-- Hard `budget_tokens`; context never exceeds the budget.
+- Hard `budget_tokens` cap; context never exceeds it.
 - Deterministic packing order mirrors retrieval ordering.
-- De-duplication by chunk id; optional per-doc diversity cap.
+- Deduplication by chunk id; optional per-doc diversity cap.
 - Truncation is deterministic (prefix to fit).
 - Provenance for every chunk: path, offset, hash, mtime.
 
 ## Storage and Local-first
 - Single-file store `recall.db` backed by SQLite.
-- Single-writer, multi-reader semantics with a temporary lock file in the OS temp dir.
+- Single-writer, multi-reader semantics with a temporary lock file in the OS temp directory.
 - No network calls unless explicitly configured by the user.
 - On-disk schema versions are stored in a `meta` table and migrated on open.
 
