@@ -47,14 +47,14 @@ pub enum Commands {
     /// Add documents to the store
     #[command(
         long_about = "Ingest files or directories into the store.\nUse --glob/--ignore to control scope and --extract-meta for Markdown metadata.",
-        after_help = "Examples:\n  recall add . --glob \"**/*.{md,rs}\" --tag code\n  recall add ./docs --glob \"**/*.md\" --extract-meta"
+        after_help = "Examples:\n  recall add . --glob \"**/*.{md,rs}\" --tag code\n  recall add ./data --glob \"**/*.md\" --extract-meta"
     )]
     Add(AddArgs),
 
     /// Remove documents from the store
     #[command(
         long_about = "Remove documents by path or ID. Removals are tombstoned unless --purge is set.",
-        after_help = "Examples:\n  recall rm ./docs/old.md\n  recall rm 123 456 --purge"
+        after_help = "Examples:\n  recall rm ./data/old.md\n  recall rm 123 456 --purge"
     )]
     Rm(RmArgs),
 
