@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::cmp::Ordering;
 use std::fs;
 use std::fs::File;
 use std::fs::OpenOptions;
+use std::os::raw::c_char;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Once;
 use std::thread::sleep;
 use std::time::Duration;
 use std::time::Instant;
@@ -28,14 +29,13 @@ use fs2::FileExt;
 use rusqlite::Connection;
 use rusqlite::OpenFlags;
 use rusqlite::OptionalExtension;
+use rusqlite::ffi::sqlite3_auto_extension;
 use rusqlite::params;
 use sha2::Digest;
 use sha2::Sha256;
+use sqlite_vec::sqlite3_vec_init;
 
-use crate::ann;
 use crate::config::Config;
-use crate::embed::cosine_similarity;
-use crate::embed::from_bytes;
 use crate::output::CorpusStats;
 
 pub struct Store {
@@ -60,8 +60,22 @@ impl StoreLock {
     }
 }
 
-const SCHEMA_VERSION: i64 = 1;
-const ANN_VERSION: &str = "lsh-v1";
+fn register_sqlite_vec() {
+    type SqliteVecInit = unsafe extern "C" fn(
+        *mut rusqlite::ffi::sqlite3,
+        *mut *const c_char,
+        *const rusqlite::ffi::sqlite3_api_routines,
+    ) -> i32;
+
+    static INIT: Once = Once::new();
+    INIT.call_once(|| unsafe {
+        let init = std::mem::transmute::<*const (), SqliteVecInit>(sqlite3_vec_init as *const ());
+        sqlite3_auto_extension(Some(init));
+    });
+}
+
+const SCHEMA_VERSION: i64 = 2;
+const VEC_VERSION: &str = "vec0-v1";
 const FTS_VERSION: &str = "fts5-v1";
 
 #[derive(Debug, Clone, Copy)]
@@ -88,10 +102,8 @@ pub struct ConsistencyReport {
     pub chunk_count: i64,
     pub fts_count: i64,
     pub fts_missing: i64,
-    pub ann_count: i64,
-    pub ann_missing: i64,
-    pub hnsw_count: i64,
-    pub hnsw_missing: i64,
+    pub vec_count: i64,
+    pub vec_missing: i64,
 }
 
 impl ConsistencyReport {
@@ -99,60 +111,46 @@ impl ConsistencyReport {
         self.chunk_count == self.fts_count && self.fts_missing == 0
     }
 
-    pub fn ann_ok(&self) -> bool {
-        self.chunk_count == self.ann_count && self.ann_missing == 0
-    }
-
-    pub fn hnsw_ok(&self) -> bool {
-        self.chunk_count == self.hnsw_count && self.hnsw_missing == 0
+    pub fn vec_ok(&self) -> bool {
+        self.chunk_count == self.vec_count && self.vec_missing == 0
     }
 }
 
 impl Store {
-    pub fn init(path: &Path) -> Result<()> {
+    pub fn init(path: &Path, config: &Config) -> Result<()> {
         if path.exists() {
             anyhow::bail!("store already exists at {}", path.display());
         }
+        let embedding_dim = config.embedding_dim.max(1);
         let _lock = Self::acquire_lock(path, StoreMode::ReadWrite)?;
         let conn = Self::open_connection(path, StoreMode::ReadWrite)?;
         Self::apply_pragmas(&conn, StoreMode::ReadWrite)?;
-        Self::create_schema(&conn)?;
+        Self::create_schema(&conn, embedding_dim)?;
         Self::set_meta(&conn, "schema_version", &SCHEMA_VERSION.to_string())?;
-        Self::set_meta(&conn, "ann_version", ANN_VERSION)?;
+        Self::set_meta(&conn, "vec_version", VEC_VERSION)?;
+        Self::set_meta(&conn, "embedding_dim", &embedding_dim.to_string())?;
         Self::set_meta(&conn, "fts_version", FTS_VERSION)?;
         Ok(())
     }
 
-    pub fn open(path: &Path, mode: StoreMode) -> Result<Self> {
-        let mut lock = Self::acquire_lock(path, mode)?;
-        let mut conn = Self::open_connection(path, mode)?;
+    pub fn open(path: &Path, mode: StoreMode, config: &Config) -> Result<Self> {
+        let lock = Self::acquire_lock(path, mode)?;
+        let conn = Self::open_connection(path, mode)?;
         Self::apply_pragmas(&conn, mode)?;
-        if matches!(mode, StoreMode::ReadWrite) {
-            Self::create_schema(&conn)?;
-            Self::migrate(&conn)?;
-            return Ok(Self {
-                conn,
-                path: path.to_path_buf(),
-                lock: Some(lock),
-            });
-        }
 
         let version = Self::schema_version(&conn)?;
         if version != SCHEMA_VERSION {
-            drop(conn);
-            drop(lock);
-            let lock_rw = Self::acquire_lock(path, StoreMode::ReadWrite)?;
-            let conn_rw = Self::open_connection(path, StoreMode::ReadWrite)?;
-            Self::apply_pragmas(&conn_rw, StoreMode::ReadWrite)?;
-            Self::create_schema(&conn_rw)?;
-            Self::migrate(&conn_rw)?;
-            drop(conn_rw);
-            drop(lock_rw);
-
-            lock = Self::acquire_lock(path, StoreMode::ReadOnly)?;
-            conn = Self::open_connection(path, StoreMode::ReadOnly)?;
-            Self::apply_pragmas(&conn, StoreMode::ReadOnly)?;
+            anyhow::bail!(
+                "store schema version {} unsupported; re-init + re-ingest required",
+                version
+            );
         }
+
+        let embedding_dim = config.embedding_dim.max(1);
+        if matches!(mode, StoreMode::ReadWrite) {
+            Self::create_schema(&conn, embedding_dim)?;
+        }
+        Self::validate_embedding_dim(&conn, embedding_dim)?;
 
         Ok(Self {
             conn,
@@ -162,6 +160,7 @@ impl Store {
     }
 
     fn open_connection(path: &Path, mode: StoreMode) -> Result<Connection> {
+        register_sqlite_vec();
         let flags = match mode {
             StoreMode::ReadOnly => OpenFlags::SQLITE_OPEN_READ_ONLY,
             StoreMode::ReadWrite => {
@@ -229,11 +228,12 @@ impl Store {
         }
     }
 
-    fn create_schema(conn: &Connection) -> Result<()> {
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS meta (\n  key TEXT PRIMARY KEY,\n  value TEXT\n);\n\nCREATE TABLE IF NOT EXISTS doc (\n  id TEXT PRIMARY KEY,\n  path TEXT,\n  mtime TEXT,\n  size INTEGER,\n  hash TEXT,\n  tag TEXT,\n  source TEXT,\n  meta TEXT,\n  deleted INTEGER DEFAULT 0\n);\n\nCREATE TABLE IF NOT EXISTS chunk (\n  rowid INTEGER PRIMARY KEY,\n  id TEXT UNIQUE,\n  doc_id TEXT,\n  offset INTEGER,\n  tokens INTEGER,\n  text TEXT,\n  embedding BLOB,\n  deleted INTEGER DEFAULT 0\n);\n\nCREATE INDEX IF NOT EXISTS idx_doc_path ON doc(path);\nCREATE INDEX IF NOT EXISTS idx_doc_tag ON doc(tag);\nCREATE INDEX IF NOT EXISTS idx_chunk_doc ON chunk(doc_id);\n\nCREATE VIRTUAL TABLE IF NOT EXISTS chunk_fts USING fts5(text, content='chunk', content_rowid='rowid');\n\nCREATE TABLE IF NOT EXISTS ann_lsh (\n  signature INTEGER,\n  chunk_id TEXT,\n  doc_id TEXT\n);\n\nCREATE INDEX IF NOT EXISTS idx_ann_sig ON ann_lsh(signature);\nCREATE INDEX IF NOT EXISTS idx_ann_doc ON ann_lsh(doc_id);\n\nCREATE TABLE IF NOT EXISTS ann_hnsw (\n  chunk_id TEXT PRIMARY KEY,\n  neighbors TEXT\n);\n\nCREATE INDEX IF NOT EXISTS idx_ann_hnsw_chunk ON ann_hnsw(chunk_id);\n\nCREATE TRIGGER IF NOT EXISTS chunk_ai AFTER INSERT ON chunk BEGIN\n  INSERT INTO chunk_fts(rowid, text) VALUES (new.rowid, new.text);\nEND;\n\nCREATE TRIGGER IF NOT EXISTS chunk_ad AFTER DELETE ON chunk BEGIN\n  INSERT INTO chunk_fts(chunk_fts, rowid, text) VALUES('delete', old.rowid, old.text);\nEND;\n\nCREATE TRIGGER IF NOT EXISTS chunk_au AFTER UPDATE ON chunk BEGIN\n  INSERT INTO chunk_fts(chunk_fts, rowid, text) VALUES('delete', old.rowid, old.text);\n  INSERT INTO chunk_fts(rowid, text) VALUES (new.rowid, new.text);\nEND;",
-        )
-        .context("create schema")?;
+    fn create_schema(conn: &Connection, embedding_dim: usize) -> Result<()> {
+        let dim = embedding_dim.max(1);
+        let sql = format!(
+            "CREATE TABLE IF NOT EXISTS meta (\n  key TEXT PRIMARY KEY,\n  value TEXT\n);\n\nCREATE TABLE IF NOT EXISTS doc (\n  id TEXT PRIMARY KEY,\n  path TEXT,\n  mtime TEXT,\n  size INTEGER,\n  hash TEXT,\n  tag TEXT,\n  source TEXT,\n  meta TEXT,\n  deleted INTEGER DEFAULT 0\n);\n\nCREATE TABLE IF NOT EXISTS chunk (\n  rowid INTEGER PRIMARY KEY,\n  id TEXT UNIQUE,\n  doc_id TEXT,\n  offset INTEGER,\n  tokens INTEGER,\n  text TEXT,\n  embedding BLOB,\n  deleted INTEGER DEFAULT 0\n);\n\nCREATE INDEX IF NOT EXISTS idx_doc_path ON doc(path);\nCREATE INDEX IF NOT EXISTS idx_doc_tag ON doc(tag);\nCREATE INDEX IF NOT EXISTS idx_chunk_doc ON chunk(doc_id);\n\nCREATE VIRTUAL TABLE IF NOT EXISTS chunk_fts USING fts5(text, content='chunk', content_rowid='rowid');\n\nCREATE VIRTUAL TABLE IF NOT EXISTS chunk_vec USING vec0(\n  chunk_rowid INTEGER PRIMARY KEY,\n  embedding FLOAT[{dim}] distance_metric=cosine\n);\n\nCREATE TRIGGER IF NOT EXISTS chunk_ai AFTER INSERT ON chunk BEGIN\n  INSERT INTO chunk_fts(rowid, text) VALUES (new.rowid, new.text);\nEND;\n\nCREATE TRIGGER IF NOT EXISTS chunk_ad AFTER DELETE ON chunk BEGIN\n  INSERT INTO chunk_fts(chunk_fts, rowid, text) VALUES('delete', old.rowid, old.text);\nEND;\n\nCREATE TRIGGER IF NOT EXISTS chunk_au AFTER UPDATE ON chunk BEGIN\n  INSERT INTO chunk_fts(chunk_fts, rowid, text) VALUES('delete', old.rowid, old.text);\n  INSERT INTO chunk_fts(rowid, text) VALUES (new.rowid, new.text);\nEND;"
+        );
+        conn.execute_batch(&sql).context("create schema")?;
         Ok(())
     }
 
@@ -257,19 +257,6 @@ impl Store {
         Ok(count > 0)
     }
 
-    fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool> {
-        let mut stmt = conn
-            .prepare(&format!("PRAGMA table_info({})", table))
-            .context("table info")?;
-        let rows = stmt.query_map([], |row| row.get::<_, String>(1))?;
-        for row in rows {
-            if row? == column {
-                return Ok(true);
-            }
-        }
-        Ok(false)
-    }
-
     fn schema_version(conn: &Connection) -> Result<i64> {
         if !Self::table_exists(conn, "meta")? {
             return Ok(0);
@@ -285,33 +272,29 @@ impl Store {
         Ok(value.and_then(|v| v.parse::<i64>().ok()).unwrap_or(0))
     }
 
-    fn ensure_doc_meta_column(conn: &Connection) -> Result<()> {
-        if !Self::column_exists(conn, "doc", "meta")? {
-            conn.execute("ALTER TABLE doc ADD COLUMN meta TEXT", [])
-                .context("add doc.meta column")?;
-        }
-        Ok(())
+    fn embedding_dim_meta(conn: &Connection) -> Result<Option<usize>> {
+        let value: Option<String> = conn
+            .query_row(
+                "SELECT value FROM meta WHERE key='embedding_dim'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .context("read embedding_dim")?;
+        Ok(value.and_then(|v| v.parse::<usize>().ok()))
     }
 
-    fn migrate(conn: &Connection) -> Result<()> {
-        let version = Self::schema_version(conn)?;
-        if version > SCHEMA_VERSION {
+    fn validate_embedding_dim(conn: &Connection, embedding_dim: usize) -> Result<()> {
+        let Some(stored) = Self::embedding_dim_meta(conn)? else {
+            anyhow::bail!("store embedding_dim metadata missing; re-init + re-ingest required");
+        };
+        if stored != embedding_dim {
             anyhow::bail!(
-                "store schema version {} is newer than supported {}",
-                version,
-                SCHEMA_VERSION
+                "config embedding_dim {} does not match store embedding_dim {}",
+                embedding_dim,
+                stored
             );
         }
-        if version == SCHEMA_VERSION {
-            return Ok(());
-        }
-
-        Self::create_schema(conn)?;
-        Self::ensure_doc_meta_column(conn)?;
-        Self::set_meta(conn, "schema_version", &SCHEMA_VERSION.to_string())?;
-        Self::set_meta(conn, "ann_version", ANN_VERSION)?;
-        Self::set_meta(conn, "fts_version", FTS_VERSION)?;
-        Self::rebuild_ann_hnsw_conn(conn)?;
         Ok(())
     }
 
@@ -392,38 +375,24 @@ impl Store {
                 |row| row.get(0),
             )
             .context("fts missing")?;
-        let ann_count: i64 = self
+        let vec_count: i64 = self
             .conn
-            .query_row("SELECT COUNT(*) FROM ann_lsh", [], |row| row.get(0))
-            .context("count ann")?;
-        let ann_missing: i64 = self
+            .query_row("SELECT COUNT(*) FROM chunk_vec", [], |row| row.get(0))
+            .context("count chunk_vec")?;
+        let vec_missing: i64 = self
             .conn
             .query_row(
-                "SELECT COUNT(*)\n                 FROM chunk\n                 LEFT JOIN ann_lsh ON ann_lsh.chunk_id = chunk.id\n                 WHERE chunk.deleted=0 AND ann_lsh.chunk_id IS NULL",
+                "SELECT COUNT(*)\n                 FROM chunk\n                 LEFT JOIN chunk_vec ON chunk_vec.chunk_rowid = chunk.rowid\n                 WHERE chunk.deleted=0 AND chunk_vec.chunk_rowid IS NULL",
                 [],
                 |row| row.get(0),
             )
-            .context("ann missing")?;
-        let hnsw_count: i64 = self
-            .conn
-            .query_row("SELECT COUNT(*) FROM ann_hnsw", [], |row| row.get(0))
-            .context("count ann_hnsw")?;
-        let hnsw_missing: i64 = self
-            .conn
-            .query_row(
-                "SELECT COUNT(*)\n                 FROM chunk\n                 LEFT JOIN ann_hnsw ON ann_hnsw.chunk_id = chunk.id\n                 WHERE chunk.deleted=0 AND ann_hnsw.chunk_id IS NULL",
-                [],
-                |row| row.get(0),
-            )
-            .context("ann_hnsw missing")?;
+            .context("chunk_vec missing")?;
         Ok(ConsistencyReport {
             chunk_count,
             fts_count,
             fts_missing,
-            ann_count,
-            ann_missing,
-            hnsw_count,
-            hnsw_missing,
+            vec_count,
+            vec_missing,
         })
     }
 
@@ -434,74 +403,24 @@ impl Store {
         Ok(())
     }
 
-    pub fn rebuild_ann_lsh(&self, config: &Config) -> Result<usize> {
+    pub fn rebuild_vec(&self) -> Result<usize> {
         self.conn
-            .execute("DELETE FROM ann_lsh", [])
-            .context("clear ann")?;
+            .execute("DELETE FROM chunk_vec", [])
+            .context("clear chunk_vec")?;
         let mut stmt = self
             .conn
-            .prepare("SELECT id, doc_id, embedding FROM chunk WHERE deleted=0")?;
+            .prepare("SELECT rowid, embedding FROM chunk WHERE deleted=0")?;
         let rows = stmt.query_map([], |row| {
-            let id: String = row.get(0)?;
-            let doc_id: String = row.get(1)?;
-            let embedding: Vec<u8> = row.get(2)?;
-            Ok((id, doc_id, embedding))
-        })?;
-        let mut inserted = 0usize;
-        for row in rows {
-            let (id, doc_id, embedding) = row?;
-            let vec = from_bytes(&embedding);
-            let sig = ann::signature(&vec, config.ann_bits, config.ann_seed);
-            self.conn.execute(
-                "INSERT INTO ann_lsh (signature, chunk_id, doc_id) VALUES (?1, ?2, ?3)",
-                params![sig as i64, id, doc_id],
-            )?;
-            inserted += 1;
-        }
-        Ok(inserted)
-    }
-
-    pub fn rebuild_ann_hnsw(&self) -> Result<usize> {
-        Self::rebuild_ann_hnsw_conn(&self.conn)
-    }
-
-    fn rebuild_ann_hnsw_conn(conn: &Connection) -> Result<usize> {
-        const HNSW_M: usize = 8;
-        conn.execute("DELETE FROM ann_hnsw", [])
-            .context("clear ann_hnsw")?;
-        let mut stmt =
-            conn.prepare("SELECT id, embedding FROM chunk WHERE deleted=0 ORDER BY id ASC")?;
-        let rows = stmt.query_map([], |row| {
-            let id: String = row.get(0)?;
+            let rowid: i64 = row.get(0)?;
             let embedding: Vec<u8> = row.get(1)?;
-            Ok((id, from_bytes(&embedding)))
+            Ok((rowid, embedding))
         })?;
-        let mut items = Vec::new();
-        for row in rows {
-            items.push(row?);
-        }
         let mut inserted = 0usize;
-        for (idx, (id, vec)) in items.iter().enumerate() {
-            let mut sims: Vec<(f32, &String)> = items
-                .iter()
-                .enumerate()
-                .filter(|(j, _)| *j != idx)
-                .map(|(_, (other_id, other_vec))| (cosine_similarity(vec, other_vec), other_id))
-                .collect();
-            sims.sort_by(|a, b| {
-                let ord = b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal);
-                if ord == Ordering::Equal {
-                    a.1.cmp(b.1)
-                } else {
-                    ord
-                }
-            });
-            let neighbors: Vec<&String> = sims.iter().take(HNSW_M).map(|(_, id)| *id).collect();
-            let neighbors_json =
-                serde_json::to_string(&neighbors).context("serialize ann_hnsw neighbors")?;
-            conn.execute(
-                "INSERT OR REPLACE INTO ann_hnsw (chunk_id, neighbors) VALUES (?1, ?2)",
-                params![id, neighbors_json],
+        for row in rows {
+            let (rowid, embedding) = row?;
+            self.conn.execute(
+                "INSERT INTO chunk_vec (chunk_rowid, embedding) VALUES (?1, ?2)",
+                params![rowid, embedding],
             )?;
             inserted += 1;
         }
@@ -511,6 +430,10 @@ impl Store {
     pub fn compact(&self) -> Result<()> {
         self.conn.execute("DELETE FROM chunk WHERE deleted=1", [])?;
         self.conn.execute("DELETE FROM doc WHERE deleted=1", [])?;
+        self.conn.execute(
+            "DELETE FROM chunk_vec WHERE chunk_rowid NOT IN (SELECT rowid FROM chunk)",
+            [],
+        )?;
         self.conn.execute_batch("VACUUM;")?;
         Ok(())
     }
@@ -530,10 +453,8 @@ impl Store {
                     .execute("UPDATE doc SET deleted=1 WHERE id = ?1", params![id])?;
                 self.conn
                     .execute("UPDATE chunk SET deleted=1 WHERE doc_id = ?1", params![id])?;
-                self.conn
-                    .execute("DELETE FROM ann_lsh WHERE doc_id = ?1", params![id])?;
                 self.conn.execute(
-                    "DELETE FROM ann_hnsw WHERE chunk_id IN (SELECT id FROM chunk WHERE doc_id = ?1)",
+                    "DELETE FROM chunk_vec WHERE chunk_rowid IN (SELECT rowid FROM chunk WHERE doc_id = ?1)",
                     params![id],
                 )?;
             }
@@ -548,10 +469,8 @@ impl Store {
         if updated > 0 {
             self.conn
                 .execute("UPDATE chunk SET deleted=1 WHERE doc_id = ?1", params![id])?;
-            self.conn
-                .execute("DELETE FROM ann_lsh WHERE doc_id = ?1", params![id])?;
             self.conn.execute(
-                "DELETE FROM ann_hnsw WHERE chunk_id IN (SELECT id FROM chunk WHERE doc_id = ?1)",
+                "DELETE FROM chunk_vec WHERE chunk_rowid IN (SELECT rowid FROM chunk WHERE doc_id = ?1)",
                 params![id],
             )?;
         }
@@ -578,15 +497,17 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
+    use crate::config::Config;
 
     #[test]
     fn shared_lock_allows_multiple_readers() -> Result<()> {
         let dir = tempdir()?;
         let db_path = dir.path().join("recall.db");
-        Store::init(&db_path)?;
+        let config = Config::default();
+        Store::init(&db_path, &config)?;
 
-        let store_a = Store::open(&db_path, StoreMode::ReadOnly)?;
-        let store_b = Store::open(&db_path, StoreMode::ReadOnly)?;
+        let store_a = Store::open(&db_path, StoreMode::ReadOnly, &config)?;
+        let store_b = Store::open(&db_path, StoreMode::ReadOnly, &config)?;
 
         store_a.stats()?;
         store_b.stats()?;
@@ -594,45 +515,24 @@ mod tests {
     }
 
     #[test]
-    fn migrates_unversioned_store() -> Result<()> {
+    fn rejects_unversioned_store() -> Result<()> {
         let dir = tempdir()?;
         let db_path = dir.path().join("recall.db");
         let conn = SqlConnection::open(&db_path)?;
         conn.execute_batch(
-            "CREATE TABLE doc (\n  id TEXT PRIMARY KEY,\n  path TEXT,\n  mtime TEXT,\n  size INTEGER,\n  hash TEXT,\n  tag TEXT,\n  source TEXT,\n  deleted INTEGER DEFAULT 0\n);\n\nCREATE TABLE chunk (\n  rowid INTEGER PRIMARY KEY,\n  id TEXT UNIQUE,\n  doc_id TEXT,\n  offset INTEGER,\n  tokens INTEGER,\n  text TEXT,\n  embedding BLOB,\n  deleted INTEGER DEFAULT 0\n);\n\nCREATE INDEX idx_doc_path ON doc(path);\nCREATE INDEX idx_doc_tag ON doc(tag);\nCREATE INDEX idx_chunk_doc ON chunk(doc_id);\n\nCREATE VIRTUAL TABLE chunk_fts USING fts5(text, content='chunk', content_rowid='rowid');\n\nCREATE TABLE ann_lsh (\n  signature INTEGER,\n  chunk_id TEXT,\n  doc_id TEXT\n);\n\nCREATE INDEX idx_ann_sig ON ann_lsh(signature);\nCREATE INDEX idx_ann_doc ON ann_lsh(doc_id);\n\nCREATE TRIGGER chunk_ai AFTER INSERT ON chunk BEGIN\n  INSERT INTO chunk_fts(rowid, text) VALUES (new.rowid, new.text);\nEND;\n\nCREATE TRIGGER chunk_ad AFTER DELETE ON chunk BEGIN\n  INSERT INTO chunk_fts(chunk_fts, rowid, text) VALUES('delete', old.rowid, old.text);\nEND;\n\nCREATE TRIGGER chunk_au AFTER UPDATE ON chunk BEGIN\n  INSERT INTO chunk_fts(chunk_fts, rowid, text) VALUES('delete', old.rowid, old.text);\n  INSERT INTO chunk_fts(rowid, text) VALUES (new.rowid, new.text);\nEND;",
+            "CREATE TABLE doc (\n  id TEXT PRIMARY KEY,\n  path TEXT,\n  mtime TEXT,\n  size INTEGER,\n  hash TEXT,\n  tag TEXT,\n  source TEXT,\n  deleted INTEGER DEFAULT 0\n);\n\nCREATE TABLE chunk (\n  rowid INTEGER PRIMARY KEY,\n  id TEXT UNIQUE,\n  doc_id TEXT,\n  offset INTEGER,\n  tokens INTEGER,\n  text TEXT,\n  embedding BLOB,\n  deleted INTEGER DEFAULT 0\n);\n\nCREATE INDEX idx_doc_path ON doc(path);\nCREATE INDEX idx_doc_tag ON doc(tag);\nCREATE INDEX idx_chunk_doc ON chunk(doc_id);\n\nCREATE VIRTUAL TABLE chunk_fts USING fts5(text, content='chunk', content_rowid='rowid');\n\nCREATE TRIGGER chunk_ai AFTER INSERT ON chunk BEGIN\n  INSERT INTO chunk_fts(rowid, text) VALUES (new.rowid, new.text);\nEND;\n\nCREATE TRIGGER chunk_ad AFTER DELETE ON chunk BEGIN\n  INSERT INTO chunk_fts(chunk_fts, rowid, text) VALUES('delete', old.rowid, old.text);\nEND;\n\nCREATE TRIGGER chunk_au AFTER UPDATE ON chunk BEGIN\n  INSERT INTO chunk_fts(chunk_fts, rowid, text) VALUES('delete', old.rowid, old.text);\n  INSERT INTO chunk_fts(rowid, text) VALUES (new.rowid, new.text);\nEND;",
         )?;
         drop(conn);
 
-        let store = Store::open(&db_path, StoreMode::ReadOnly)?;
-        let version: String = store
-            .conn
-            .query_row(
-                "SELECT value FROM meta WHERE key='schema_version'",
-                [],
-                |row| row.get(0),
-            )
-            .context("schema_version")?;
-        assert_eq!(version, SCHEMA_VERSION.to_string());
-
-        let mut stmt = store.conn.prepare("PRAGMA table_info(doc)")?;
-        let mut has_meta = false;
-        let rows = stmt.query_map([], |row| row.get::<_, String>(1))?;
-        for row in rows {
-            if row? == "meta" {
-                has_meta = true;
-                break;
-            }
-        }
-        assert!(has_meta, "doc.meta column missing after migration");
-        let table_count: i64 = store
-            .conn
-            .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='ann_hnsw'",
-                [],
-                |row| row.get(0),
-            )
-            .context("ann_hnsw table")?;
-        assert_eq!(table_count, 1);
+        let config = Config::default();
+        let err = match Store::open(&db_path, StoreMode::ReadOnly, &config) {
+            Ok(_) => anyhow::bail!("expected unsupported schema error"),
+            Err(err) => err,
+        };
+        assert!(
+            err.to_string().contains("schema version 0 unsupported"),
+            "unexpected error: {err}"
+        );
         Ok(())
     }
 }

@@ -23,9 +23,6 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::ann;
-use crate::config::Config;
-use crate::embed::from_bytes;
 use crate::store::Store;
 
 #[derive(Debug, Serialize)]
@@ -135,11 +132,7 @@ pub fn export_store(store: &Store, mut writer: impl Write) -> Result<TransferSta
     Ok(TransferStats { docs, chunks })
 }
 
-pub fn import_store(
-    store: &Store,
-    config: &Config,
-    reader: impl std::io::Read,
-) -> Result<TransferStats> {
+pub fn import_store(store: &Store, reader: impl std::io::Read) -> Result<TransferStats> {
     let mut docs = 0usize;
     let mut chunks = 0usize;
     let mut buf = BufReader::new(reader);
@@ -202,33 +195,7 @@ pub fn import_store(
     }
 
     store.conn.execute_batch("COMMIT")?;
-    rebuild_ann_lsh(store, config)?;
-    if config.ann_backend == "hnsw" {
-        store.rebuild_ann_hnsw()?;
-    }
+    store.rebuild_vec()?;
 
     Ok(TransferStats { docs, chunks })
-}
-
-fn rebuild_ann_lsh(store: &Store, config: &Config) -> Result<()> {
-    store.conn.execute("DELETE FROM ann_lsh", [])?;
-    let mut stmt = store
-        .conn
-        .prepare("SELECT id, doc_id, embedding FROM chunk WHERE deleted=0")?;
-    let rows = stmt.query_map([], |row| {
-        let id: String = row.get(0)?;
-        let doc_id: String = row.get(1)?;
-        let embedding: Vec<u8> = row.get(2)?;
-        Ok((id, doc_id, embedding))
-    })?;
-    for row in rows {
-        let (id, doc_id, embedding) = row?;
-        let vec = from_bytes(&embedding);
-        let sig = ann::signature(&vec, config.ann_bits, config.ann_seed);
-        store.conn.execute(
-            "INSERT INTO ann_lsh (signature, chunk_id, doc_id) VALUES (?1, ?2, ?3)",
-            rusqlite::params![sig as i64, id, doc_id],
-        )?;
-    }
-    Ok(())
 }

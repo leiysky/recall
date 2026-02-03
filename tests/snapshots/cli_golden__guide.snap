@@ -1,5 +1,6 @@
 ---
 source: tests/cli_golden.rs
+assertion_line: 235
 expression: stdout
 ---
 # Recall Usage Guide
@@ -15,6 +16,7 @@ recall add . --glob "**/*.{md,rs,ts,py}" --tag code
 recall search "retry backoff" --k 8 --filter "doc.path GLOB '**/net/**'" --json
 recall context "retry backoff" --budget-tokens 1200 --diversity 2
 ```
+Note: schema v2 uses sqlite-vec for vector search and is not compatible with older stores; re-init and re-ingest are required after upgrading.
 
 ## Stores and Discovery
 - `recall init <path>` creates `recall.db` in the target directory. The
@@ -78,7 +80,7 @@ Notes:
 - `USING` is optional; without it queries are strict filters only.
 - `FILTER` is exact and fields must be qualified (`doc.*` or `chunk.*`).
 - `ORDER BY score` is meaningful only with `USING`.
-- Legacy `SELECT ... FROM ...` is still accepted.
+- `SELECT ... FROM ...` is still accepted.
 
 Useful fields to `SELECT`:
 - Doc fields: `doc.id`, `doc.path`, `doc.mtime`, `doc.hash`, `doc.tag`,
@@ -135,9 +137,9 @@ Examples:
 - `recall guide` prints this guide.
 
 ## JSON Output
-Most commands support `--json` with a stable schema version. Errors are also
-JSON and include `error.code` and `error.message`. Use `--jsonl` for streaming
-large result sets.
+Most commands support `--json` with a stable schema. Errors are also JSON and
+include `error.code` and `error.message`. Use `--jsonl` for streaming large
+result sets.
 
 ## Configuration (Optional)
 Recall reads a single optional config file from the OS config directory. The
@@ -148,9 +150,6 @@ chunk_tokens = 256
 overlap_tokens = 32
 embedding = "hash"
 embedding_dim = 256
-ann_backend = "lsh"
-ann_bits = 16
-ann_seed = 42
 bm25_weight = 0.5
 vector_weight = 0.5
 max_limit = 1000

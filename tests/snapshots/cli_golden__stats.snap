@@ -1,10 +1,11 @@
 ---
 source: tests/cli_golden.rs
+assertion_line: 223
 expression: normalize_json(stats_json)
 ---
 {
   "ok": true,
-  "schema_version": "1",
+  "schema_version": "2",
   "stats": {
     "chunk_count": 1,
     "corpus": {
@@ -13,7 +14,7 @@ expression: normalize_json(stats_json)
       "docs": 1,
       "tokens": 5
     },
-    "db_size_bytes": 81920,
+    "db_size_bytes": 1142784,
     "doc_count": 1,
     "memory": {},
     "snapshot": "",

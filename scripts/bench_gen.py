@@ -14,7 +14,7 @@ VOCAB = [
     "vector", "matrix", "query", "search", "context", "chunk", "doc",
     "index", "token", "filter", "schema", "snapshot", "migrate", "store",
     "deterministic", "semantic", "lexical", "hybrid", "budget", "provenance",
-    "ingest", "export", "import", "ann", "lsh", "hnsw", "fts5", "sqlite",
+    "ingest", "export", "import", "fts5", "sqlite",
     "memory", "latency", "throughput", "benchmark", "dataset", "baseline",
     "window", "offset", "order", "score", "ranking", "weight", "config",
 ]

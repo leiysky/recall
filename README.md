@@ -4,7 +4,7 @@ Recall is a CLI-first, hybrid search database for AI agents working with large c
 
 ## Highlights
 - CLI and RQL are the stable, top-level interfaces.
-- Single-file local data store (`recall.db`) backed by SQLite + FTS5; optional global config in the OS config dir; lock file is temporary.
+- Single-file local data store (`recall.db`) backed by SQLite + FTS5 + sqlite-vec; optional global config in the OS config dir; lock file is temporary.
 - Hybrid retrieval: lexical (FTS5 bm25) + semantic embeddings.
 - Deterministic ordering and context assembly with token budgets and provenance.
 - JSON outputs with schema validation and golden tests.
@@ -108,6 +108,7 @@ recall add ./data --glob "**/*.md" --tag docs
 recall search "retry policy" --k 8 --filter "doc.tag = 'docs'" --json
 recall context "how we handle retries" --budget-tokens 1200 --diversity 2
 ```
+Note: schema v2 (sqlite-vec) is not compatible with older stores; re-init and re-ingest are required after upgrading.
 
 ## Usage Guide
 The full usage guide is in `USAGE.md` and is also available via:
