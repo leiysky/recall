@@ -4,7 +4,7 @@ Recall is a CLI-first, hybrid search database for AI agents working with large c
 
 ## Highlights
 - CLI and RQL are the stable, top-level interfaces.
-- Single-file local store (`recall.db`) backed by SQLite + FTS5.
+- Single-file local data store (`recall.db`) backed by SQLite + FTS5; config (`recall.toml`) and lock files are separate.
 - Hybrid retrieval: lexical (FTS5 bm25) + semantic embeddings.
 - Deterministic ordering and context assembly with token budgets and provenance.
 - JSON outputs with schema validation and golden tests.
@@ -14,7 +14,7 @@ Recall is a CLI-first, hybrid search database for AI agents working with large c
 Canonical definitions live in `DESIGN.md` under Core Principles.
 - Determinism over magic: identical inputs + store state yield identical outputs, including ordering and context assembly.
 - Hybrid retrieval with strict filters: semantic + lexical ranking is allowed, but FILTER constraints are exact and non-negotiable.
-- Local-first, zero-ops: single-file `recall.db`, offline by default, no required services.
+- Local-first, zero-ops: data store is a single file (`recall.db`); config/lock are separate, offline by default, no required services.
 - Context as a managed resource: hard token budgets, deterministic packing, and provenance for every chunk.
 - AI-native interface: CLI and stable RQL are the source of truth; JSON outputs are stable for tooling.
 
@@ -24,7 +24,7 @@ repeatable access to large, evolving corpora. Think of it as “SQLite for
 document data” with semantic search and exact filtering.
 
 Use Recall when you want:
-- A single-file, portable index you can move with a repo or dataset.
+- A portable index where the data store is a single file (`recall.db`) you can move with a repo or dataset.
 - Deterministic results across runs for agent workflows.
 - A CLI-first surface you can script and automate.
 - Hybrid search (semantic + lexical) without a hosted service.
@@ -47,9 +47,11 @@ recall query --rql "FROM doc FILTER doc.tag = \"policy\" LIMIT 20 SELECT doc.pat
 ```
 
 ### 3) Incident Response / Runbooks
-Record the snapshot token for audit trails and export for sharing.
+Record the snapshot token for audit trails and reproducible paging.
 ```
 recall search "rollback steps" --k 12 --json
+# Copy stats.snapshot from the JSON output, then re-run deterministically:
+recall search "rollback steps" --k 12 --snapshot TOKEN --json
 recall export --out incident-2026-02-01.jsonl --json
 ```
 
@@ -102,8 +104,8 @@ recall man > /tmp/recall.1
 ## CLI Commands
 ```
 recall init [path]
-recall add <path...> [--glob ...] [--tag ...] [--source ...] [--mtime-only] [--ignore ...] [--parser auto|plain|markdown|code] [--extract-meta]
-recall rm <doc_id|path...> [--purge]
+recall add <path...> [--glob ...] [--tag ...] [--source ...] [--mtime-only] [--ignore ...] [--parser auto|plain|markdown|code] [--extract-meta] [--json]
+recall rm <doc_id|path...> [--purge] [--json]
 recall search <query> [--k N] [--bm25] [--vector] [--filter ...|@file] [--lexical-mode fts5|literal] [--snapshot TOKEN] [--explain] [--json|--jsonl]
 recall query --rql <string|@file> [--rql-stdin] [--lexical-mode fts5|literal] [--snapshot TOKEN] [--explain] [--json|--jsonl]
 recall context <query> [--budget-tokens N] [--diversity N] [--format text|json] [--filter ...|@file] [--lexical-mode fts5|literal] [--snapshot TOKEN] [--explain] [--json]
@@ -163,7 +165,7 @@ FILTER doc.tag = "docs" AND doc.path GLOB "**/api/**"
 ```
 
 ## JSON Output
-All commands support `--json` with a stable schema (including `schema_version`). Errors are machine-parseable and include `code` and `message`. A `stats.snapshot` token is provided as a reproducibility hint, and `--snapshot` accepts tokens for deterministic pagination. Use `--jsonl` for streaming large result sets from `recall search` and `recall query`.
+Most commands support `--json` with a stable schema (including `schema_version`); `recall init`, `recall completions`, and `recall man` are plain text only. Errors are machine-parseable and include `code` and `message`. A `stats.snapshot` token is provided as a reproducibility hint, and `--snapshot` accepts tokens for deterministic pagination. Use `--jsonl` for streaming large result sets from `recall search` and `recall query`.
 
 ## Export / Import
 Use JSONL for portability:
@@ -173,6 +175,8 @@ recall import recall.jsonl --json
 ```
 
 ## Development
+Note: the files referenced below (including `./x`, `WORKFLOWS.md`, `ROADMAP.md`, and `docs/`) live in the source checkout. Release archives built via `scripts/package_release.sh` include them; binary-only installs may not.
+
 Use the `./x` helper for consistent workflows:
 ```
 ./x fmt

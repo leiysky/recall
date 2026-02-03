@@ -38,6 +38,7 @@ Severity definitions:
   - `recall init` → `recall add` → `recall search` → `recall context`.
 - [ ] Run `scripts/bench_run.py` and compare against baseline thresholds.
 - [ ] Verify migrations on an older store (schema version bump).
+- [ ] Build release archive with `scripts/package_release.sh` and verify docs/scripts are included.
 - [ ] Core principle checks (v1.0):
   - Strict FILTER exactness: run `cargo test golden_cli_outputs` and spot-check a negative filter
     (expect empty results when the filter cannot match).
