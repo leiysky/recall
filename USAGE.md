@@ -74,7 +74,7 @@ Notes:
 - `USING` is optional; without it queries are strict filters only.
 - `FILTER` is exact and fields must be qualified (`doc.*` or `chunk.*`).
 - `ORDER BY score` is meaningful only with `USING`.
-- Legacy `SELECT ... FROM ...` is still accepted.
+- `SELECT ... FROM ...` is still accepted.
 
 Useful fields to `SELECT`:
 - Doc fields: `doc.id`, `doc.path`, `doc.mtime`, `doc.hash`, `doc.tag`,
@@ -131,9 +131,9 @@ Examples:
 - `recall guide` prints this guide.
 
 ## JSON Output
-Most commands support `--json` with a stable schema version. Errors are also
-JSON and include `error.code` and `error.message`. Use `--jsonl` for streaming
-large result sets.
+Most commands support `--json` with a stable schema. Errors are also JSON and
+include `error.code` and `error.message`. Use `--jsonl` for streaming large
+result sets.
 
 ## Configuration (Optional)
 Recall reads a single optional config file from the OS config directory. The

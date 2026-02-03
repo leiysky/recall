@@ -693,7 +693,7 @@ fn cmd_completions(shell: Shell) -> Result<()> {
     Ok(())
 }
 
-const USAGE_GUIDE: &str = include_str!("../docs/USAGE.md");
+const USAGE_GUIDE: &str = include_str!("../USAGE.md");
 
 fn cmd_guide() -> Result<()> {
     std::io::stdout().write_all(USAGE_GUIDE.as_bytes())?;

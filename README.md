@@ -90,27 +90,27 @@ recall import kb.jsonl --json
 
 ## Install (Local)
 ```
-cargo build --release
+cargo build
 ```
-The binary will be at `target/release/recall`.
+The binary will be at `target/debug/recall`.
 
 ### Install (Cargo)
 ```
 cargo install --path .
 ```
 This installs the `recall` binary into your Cargo bin directory.
-Package-manager releases (crates.io/npm/pypi) are planned after v1.0; build from source for now.
+Package-manager distribution is planned; build from source for now.
 
 ## Quickstart
 ```
 recall init .
-recall add ./docs --glob "**/*.md" --tag docs
+recall add ./data --glob "**/*.md" --tag docs
 recall search "retry policy" --k 8 --filter "doc.tag = 'docs'" --json
 recall context "how we handle retries" --budget-tokens 1200 --diversity 2
 ```
 
 ## Usage Guide
-The full usage guide is in `docs/USAGE.md` and is also available via:
+The full usage guide is in `USAGE.md` and is also available via:
 ```
 recall guide
 ```
@@ -174,8 +174,8 @@ SELECT <fields>;
 Notes:
 - `USING` enables semantic/lexical search; without it, queries are strict filters only.
 - `FILTER` is exact and fields must be qualified (`doc.*`, `chunk.*`).
-- Unknown `SELECT` fields are ignored in v0.1 (permissive).
-- Legacy `SELECT ... FROM ...` syntax is still accepted for compatibility.
+- Unknown `SELECT` fields are ignored (permissive).
+- `SELECT ... FROM ...` syntax is still accepted.
 
 Example:
 ```
@@ -204,13 +204,12 @@ FILTER doc.tag = "docs" AND doc.path GLOB "**/api/**"
 - PowerShell example: `--filter "doc.tag = 'docs' AND doc.path GLOB '**/api/**'"`.
 
 ## JSON Output
-Most commands support `--json` with a stable schema (including `schema_version`); `recall init`, `recall completions`, and `recall guide` are plain text only. Errors are machine-parseable and include `code` and `message`. A `stats.snapshot` token is provided as a reproducibility hint, and `--snapshot` accepts tokens for deterministic pagination. Use `--jsonl` for streaming large result sets from `recall search` and `recall query`.
+Most commands support `--json` with a stable schema; `recall init`, `recall completions`, and `recall guide` are plain text only. Errors are machine-parseable and include `code` and `message`. A `stats.snapshot` token is provided as a reproducibility hint, and `--snapshot` accepts tokens for deterministic pagination. Use `--jsonl` for streaming large result sets from `recall search` and `recall query`.
 
 Minimal example:
 ```
 {
   "ok": true,
-  "schema_version": "1",
   "results": [ ... ],
   "stats": { "snapshot": "2026-02-02T00:00:00Z" }
 }
@@ -220,7 +219,6 @@ Error example:
 ```
 {
   "ok": false,
-  "schema_version": "1",
   "error": { "code": "error", "message": "store not found; run `recall init` first" }
 }
 ```
@@ -233,7 +231,7 @@ recall import recall.jsonl --json
 ```
 
 ## Development
-Note: the files referenced below (including `./x`, `AGENTS.md`, `ROADMAP.md`, and `docs/`) live in the source checkout. Release archives built via `scripts/package_release.sh` include them; binary-only installs may not.
+Note: the files referenced below (including `./x`, `AGENTS.md`, `ROADMAP.md`, and `USAGE.md`) live in the source checkout.
 
 Use the `./x` helper for consistent workflows:
 ```
@@ -242,24 +240,14 @@ Use the `./x` helper for consistent workflows:
 ./x clippy -- -D warnings
 ```
 
-## Benchmarks
-See `docs/benchmarks/README.md` for the benchmark dataset, baseline numbers,
-and regression thresholds.
-
 ## Workflows
 See `AGENTS.md` → "Inlined Reference Documents" → `WORKFLOWS.md` for temporary
 (volatile) workflows and end-to-end examples of using Recall to develop Recall.
 
 ## Roadmap
 See `ROADMAP.md`.
-
-## Compatibility
-See `docs/COMPATIBILITY.md` for the v1.0 interface freeze, upgrade guarantees,
-and compatibility matrix.
-
-## Releases
-See `docs/RELEASE.md` for the release checklist and versioning policy. v1.0
-release notes draft lives in `docs/history/changes/CHANGE-2026-02-02-v1-0-release.md`.
+## Documentation
+The documentation system is being rebuilt; use `USAGE.md`, `AGENTS.md`, and `ROADMAP.md` for now.
 
 ## License
 Apache-2.0. See `LICENSE`.

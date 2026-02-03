@@ -477,8 +477,8 @@ mod tests {
     }
 
     #[test]
-    fn extract_metadata_from_issue_header() -> Result<()> {
-        let text = "# ISSUE-1\n\nStatus: active\nMilestone: M1\nOwner:\n\nContext:\n- note\n";
+    fn extract_metadata_from_header() -> Result<()> {
+        let text = "# RECORD-1\n\nStatus: active\nMilestone: M1\nOwner:\n\nContext:\n- note\n";
         let meta = extract_metadata(text)?.expect("meta");
         let value: serde_json::Value = serde_json::from_str(&meta)?;
         assert_eq!(value.get("status").and_then(|v| v.as_str()), Some("active"));

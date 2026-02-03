@@ -20,16 +20,16 @@ Canonical source: this section defines the core principles and terms. Other docs
 - Deterministic packing: context assembly selects, orders, and truncates chunks in a fixed, documented way under a hard token budget.
 - Provenance: each chunk retains path, offset, hash, and mtime for traceability.
 
-## Scope (v0.1)
+## Scope
 - Single-file store `recall.db` (SQLite-backed).
 - CLI: `init`, `add`, `rm`, `search`, `query`, `context`, plus `stats`, `doctor`, `compact`, `guide`.
 - Hybrid retrieval: lexical (FTS5 BM25) + semantic embeddings with explicit weights.
 - Deterministic ordering and tie-breaks; `--explain` for scoring stages.
 - Budgeted context assembly with provenance and optional diversity cap.
-- Stable `--json` output with schema versioning and JSONL streaming for large results.
+- Stable `--json` output and JSONL streaming for large results.
 - JSONL export/import for portability.
 - Snapshot tokens for reproducible paging.
-- On-disk schema versioning + migrations.
+- On-disk schema migrations.
 - Optional metadata extraction from Markdown headers/front matter.
 - Structure-aware chunking (Markdown headings and code blocks).
 
@@ -66,8 +66,8 @@ Notes:
 - `USING` enables semantic/lexical search; without it, queries are strict filters only.
 - `FILTER` is exact; fields must be qualified (`doc.*`, `chunk.*`).
 - `ORDER BY score` is meaningful only when `USING` is present.
-- Unknown `SELECT` fields are ignored in v0.1 (permissive).
-- Legacy `SELECT ... FROM ...` syntax is still accepted for compatibility.
+- Unknown `SELECT` fields are ignored (permissive).
+- `SELECT ... FROM ...` syntax is still accepted.
 
 ### Filter Expression Language (FEL)
 ```
@@ -110,17 +110,7 @@ Notes:
 - Single-file store `recall.db` backed by SQLite.
 - Single-writer, multi-reader semantics with a temporary lock file in the OS temp directory.
 - No network calls unless explicitly configured by the user.
-- On-disk schema versions are stored in a `meta` table and migrated on open.
-
-## Compatibility and Upgrade Guarantees (v1.0)
-- CLI, RQL, and JSON schema are frozen after Milestone 6.
-- Breaking changes require a major version bump and schema version change.
-- Unversioned stores are migrated to schema version 1 on open; newer schemas are rejected.
-- See `docs/COMPATIBILITY.md` for the compatibility matrix and upgrade guidance.
-
-## Release Readiness (v1.0)
-- Release checklist and RC gate definitions: `docs/RELEASE.md`.
-- Performance baselines and regression thresholds: `docs/benchmarks/README.md`.
+- On-disk schema metadata is stored in a `meta` table and migrated on open.
 
 ## Data Model (Logical)
 - `doc`: `id`, `path`, `mtime`, `hash`, `tag`, `source`, `meta`, `deleted`.
@@ -132,13 +122,13 @@ Notes:
   or top-of-file `Key: Value` blocks.
 - Extracted fields are stored as a doc-level metadata map (JSON) and exposed in
   `--json` outputs.
-- RQL allows exact filters on metadata keys (e.g., `doc.meta.milestone`), with
+- RQL allows exact filters on metadata keys (e.g., `doc.meta.category`), with
   missing keys treated as null.
 - Metadata keys are normalized to lowercase with `_` separators.
 
 ## JSON Output (Stable)
 Top-level fields:
-- `ok`, `schema_version`, `query`, `results`, `context`, `stats`, `warnings`, `error`, `explain`.
+- `ok`, `query`, `results`, `context`, `stats`, `warnings`, `error`, `explain`.
 
 Result entries include:
 - `score`, `doc{...}`, `chunk{...}`, `explain{lexical, semantic}`.

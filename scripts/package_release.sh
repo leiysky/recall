@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build a release archive that includes the binary plus docs/scripts referenced in README.
+# Build a release archive that includes the binary plus repo helpers referenced in README.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -30,9 +30,9 @@ rm -rf "$STAGE"
 mkdir -p "$STAGE/bin"
 
 cp "$BIN" "$STAGE/bin/"
-cp README.md LICENSE DESIGN.md ROADMAP.md AGENTS.md "$STAGE/"
+cp README.md LICENSE DESIGN.md ROADMAP.md AGENTS.md USAGE.md "$STAGE/"
 cp x "$STAGE/"
-cp -R docs scripts "$STAGE/"
+cp -R scripts "$STAGE/"
 
 tar -czf "${OUT_DIR}/${NAME}.tar.gz" -C "$OUT_DIR" "$NAME"
 
