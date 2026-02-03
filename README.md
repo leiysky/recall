@@ -4,7 +4,7 @@ Recall is a CLI-first, hybrid search database for AI agents working with large c
 
 ## Highlights
 - CLI and RQL are the stable, top-level interfaces.
-- Single-file local data store (`recall.db`) backed by SQLite + FTS5; config (`recall.toml`) and lock files are separate.
+- Single-file local data store (`recall.db`) backed by SQLite + FTS5; optional global config in the OS config dir; lock file is temporary.
 - Hybrid retrieval: lexical (FTS5 bm25) + semantic embeddings.
 - Deterministic ordering and context assembly with token budgets and provenance.
 - JSON outputs with schema validation and golden tests.
@@ -14,7 +14,7 @@ Recall is a CLI-first, hybrid search database for AI agents working with large c
 Canonical definitions live in `DESIGN.md` under Core Principles.
 - Determinism over magic: identical inputs + store state yield identical outputs, including ordering and context assembly.
 - Hybrid retrieval with strict filters: semantic + lexical ranking is allowed, but FILTER constraints are exact and non-negotiable.
-- Local-first, zero-ops: data store is a single file (`recall.db`); config/lock are separate, offline by default, no required services.
+- Local-first, zero-ops: data store is a single file (`recall.db`); optional global config in the OS config dir; temporary lock file; offline by default, no required services.
 - Context as a managed resource: hard token budgets, deterministic packing, and provenance for every chunk.
 - AI-native interface: CLI and stable RQL are the source of truth; JSON outputs are stable for tooling.
 
@@ -68,6 +68,26 @@ Integrate `recall query --json` into pipelines for reproducible retrieval.
 recall query --rql "FROM chunk USING semantic('SLO') LIMIT 6 SELECT chunk.text, score;" --json
 ```
 
+## End-to-End Examples
+### Repo Workflow (Agent-Ready)
+```
+recall init .
+recall add . --glob "**/*.{md,rs,ts,py}" --tag code
+recall search "retry backoff" --k 8 --filter "doc.path GLOB '**/net/**'" --json
+# Copy stats.snapshot from the JSON output, then:
+recall context "retry backoff" --budget-tokens 1200 --snapshot TOKEN --json
+```
+
+### Policy Knowledge Base (Portable)
+```
+recall init ./kb
+recall add ./policies --glob "**/*.md" --tag policy --source "handbook"
+recall query --rql "FROM doc FILTER doc.tag = \"policy\" LIMIT 10 SELECT doc.path;" --json
+recall export --out kb.jsonl --json
+recall init ./kb-copy
+recall import kb.jsonl --json
+```
+
 ## Install (Local)
 ```
 cargo build --release
@@ -79,6 +99,7 @@ The binary will be at `target/release/recall`.
 cargo install --path .
 ```
 This installs the `recall` binary into your Cargo bin directory.
+Package-manager releases (crates.io/npm/pypi) are planned after v1.0; build from source for now.
 
 ## Quickstart
 ```
@@ -87,6 +108,13 @@ recall add ./docs --glob "**/*.md" --tag docs
 recall search "retry policy" --k 8 --filter "doc.tag = 'docs'" --json
 recall context "how we handle retries" --budget-tokens 1200 --diversity 2
 ```
+
+## Which Command Should I Use?
+| Need | Command | Output |
+| --- | --- | --- |
+| Ad hoc hybrid retrieval | `recall search` | Ranked chunk results with scores |
+| Structured filtering & fields | `recall query --rql` | Selected doc/chunk fields |
+| Build a model-ready context | `recall context` | Bounded context text/JSON |
 
 ## Shell Completions and Man Page
 Generate completions:
@@ -164,8 +192,32 @@ Example:
 FILTER doc.tag = "docs" AND doc.path GLOB "**/api/**"
 ```
 
+### Filter Quoting Tips
+- Prefer single quotes in shell filters to avoid escaping: `--filter 'doc.tag = "docs"'`.
+- Use `--filter @file` for complex predicates stored in a file.
+- PowerShell example: `--filter "doc.tag = 'docs' AND doc.path GLOB '**/api/**'"`.
+
 ## JSON Output
 Most commands support `--json` with a stable schema (including `schema_version`); `recall init`, `recall completions`, and `recall man` are plain text only. Errors are machine-parseable and include `code` and `message`. A `stats.snapshot` token is provided as a reproducibility hint, and `--snapshot` accepts tokens for deterministic pagination. Use `--jsonl` for streaming large result sets from `recall search` and `recall query`.
+
+Minimal example:
+```
+{
+  "ok": true,
+  "schema_version": "1",
+  "results": [ ... ],
+  "stats": { "snapshot": "2026-02-02T00:00:00Z" }
+}
+```
+
+Error example:
+```
+{
+  "ok": false,
+  "schema_version": "1",
+  "error": { "code": "error", "message": "store not found; run `recall init` first" }
+}
+```
 
 ## Export / Import
 Use JSONL for portability:

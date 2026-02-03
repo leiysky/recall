@@ -148,13 +148,13 @@ impl ScoredItem {
             if doc_fields.contains(&"source") {
                 doc.insert("source".into(), serde_json::json!(self.doc.source));
             }
-            if doc_fields.contains(&"meta") {
-                if let Some(meta) = &self.doc.meta {
-                    if let Ok(value) = serde_json::from_str::<serde_json::Value>(meta) {
-                        doc.insert("meta".into(), value);
-                    } else {
-                        doc.insert("meta".into(), serde_json::json!(meta));
-                    }
+            if doc_fields.contains(&"meta")
+                && let Some(meta) = &self.doc.meta
+            {
+                if let Ok(value) = serde_json::from_str::<serde_json::Value>(meta) {
+                    doc.insert("meta".into(), value);
+                } else {
+                    doc.insert("meta".into(), serde_json::json!(meta));
                 }
             }
             if !doc.is_empty() {
@@ -399,6 +399,7 @@ pub fn search_chunks(
     search_chunks_with_inputs(store, config, inputs, opts, None, None, limit, 0)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn search_chunks_with_inputs(
     store: &Store,
     config: &Config,
@@ -522,6 +523,7 @@ fn apply_snapshot_filter(filter: SqlFragment, snapshot: &Option<String>) -> SqlF
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_explain_payload(
     config: &Config,
     opts: &SearchOptions,
@@ -1061,11 +1063,11 @@ fn semantic_search_hnsw(
             .conn
             .query_row(&sql, params_from_iter(params), |row| row.get(0))
             .optional()?;
-        if let Some(raw) = neighbors {
-            if let Ok(list) = serde_json::from_str::<Vec<String>>(&raw) {
-                for neighbor in list {
-                    candidates.insert(neighbor);
-                }
+        if let Some(raw) = neighbors
+            && let Ok(list) = serde_json::from_str::<Vec<String>>(&raw)
+        {
+            for neighbor in list {
+                candidates.insert(neighbor);
             }
         }
     }

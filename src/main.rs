@@ -43,7 +43,6 @@ use time::format_description::well_known::Rfc3339;
 
 use crate::cli::Cli;
 use crate::cli::Commands;
-use crate::config::Config;
 use crate::config::ConfigCtx;
 use crate::output::JsonResponse;
 use crate::output::MemoryStats;
@@ -146,22 +145,19 @@ fn handle_result(result: Result<()>, json: bool) -> Result<()> {
 fn cmd_init(path: Option<PathBuf>) -> Result<()> {
     let root = path.unwrap_or_else(|| PathBuf::from("."));
     std::fs::create_dir_all(&root).with_context(|| format!("create dir {root:?}"))?;
-
-    let config_path = root.join("recall.toml");
-    if config_path.exists() {
-        anyhow::bail!("recall.toml already exists at {}", config_path.display());
-    }
-
-    let config = Config::default();
-    config::write_config(&config_path, &config)?;
-
+    let config = config::load_global_config()?;
     let store_path = root.join(&config.store_path);
     store::Store::init(&store_path)?;
 
     println!("Initialized Recall store at {}", store_path.display());
+    let config_hint = config::global_config_path()
+        .map(|path| path.display().to_string())
+        .unwrap_or_else(|| "<config dir unavailable>".to_string());
+    println!("Optional config: {config_hint}");
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cmd_add(
     paths: Vec<PathBuf>,
     glob: Option<String>,
@@ -242,6 +238,7 @@ fn cmd_rm(targets: Vec<String>, purge: bool, json: bool) -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cmd_search(
     query: String,
     k: usize,
@@ -447,6 +444,7 @@ fn cmd_import(path: PathBuf, json: bool) -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cmd_context(
     query: String,
     budget_tokens: usize,

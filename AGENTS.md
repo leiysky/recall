@@ -759,7 +759,9 @@ Result entries include:
 Context entries include:
 - `text`, `budget_tokens`, `used_tokens`, `chunks[{path, hash, mtime, offset, tokens, text}]`.
 
-##### Configuration (recall.toml)
+##### Configuration (Global recall.toml)
+Recall uses an optional global config file in the OS config directory:
+`<config_dir>/recall/recall.toml`.
 - `store_path`
 - `chunk_tokens`, `overlap_tokens`
 - `embedding`, `embedding_dim`
@@ -1832,7 +1834,7 @@ Recall is a CLI-first, hybrid search database for AI agents working with large c
 
 ##### Highlights
 - CLI and RQL are the stable, top-level interfaces.
-- Single-file local data store (`recall.db`) backed by SQLite + FTS5; config (`recall.toml`) and lock files are separate.
+- Single-file local data store (`recall.db`) backed by SQLite + FTS5; optional global config in the OS config dir; lock file is temporary.
 - Hybrid retrieval: lexical (FTS5 bm25) + semantic embeddings.
 - Deterministic ordering and context assembly with token budgets and provenance.
 - JSON outputs with schema validation and golden tests.
@@ -1842,7 +1844,7 @@ Recall is a CLI-first, hybrid search database for AI agents working with large c
 Canonical definitions live in `DESIGN.md` under Core Principles.
 - Determinism over magic: identical inputs + store state yield identical outputs, including ordering and context assembly.
 - Hybrid retrieval with strict filters: semantic + lexical ranking is allowed, but FILTER constraints are exact and non-negotiable.
-- Local-first, zero-ops: data store is a single file (`recall.db`); config/lock are separate, offline by default, no required services.
+- Local-first, zero-ops: data store is a single file (`recall.db`); optional global config in the OS config dir; temporary lock file; offline by default, no required services.
 - Context as a managed resource: hard token budgets, deterministic packing, and provenance for every chunk.
 - AI-native interface: CLI and stable RQL are the source of truth; JSON outputs are stable for tooling.
 
