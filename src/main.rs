@@ -36,7 +36,6 @@ use clap::CommandFactory;
 use clap::Parser;
 use clap_complete::Shell;
 use clap_complete::generate;
-use clap_mangen::Man;
 use serde_json::json;
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
@@ -123,7 +122,7 @@ fn run() -> Result<()> {
         Commands::Export(args) => handle_result(cmd_export(args.out, args.json), args.json),
         Commands::Import(args) => handle_result(cmd_import(args.path, args.json), args.json),
         Commands::Completions { shell } => handle_result(cmd_completions(shell), false),
-        Commands::Man => handle_result(cmd_man(), false),
+        Commands::Guide => handle_result(cmd_guide(), false),
     }
 }
 
@@ -694,12 +693,10 @@ fn cmd_completions(shell: Shell) -> Result<()> {
     Ok(())
 }
 
-fn cmd_man() -> Result<()> {
-    let cmd = Cli::command();
-    let man = Man::new(cmd);
-    let mut buf = Vec::new();
-    man.render(&mut buf)?;
-    std::io::stdout().write_all(&buf)?;
+const USAGE_GUIDE: &str = include_str!("../docs/USAGE.md");
+
+fn cmd_guide() -> Result<()> {
+    std::io::stdout().write_all(USAGE_GUIDE.as_bytes())?;
     Ok(())
 }
 

@@ -5,11 +5,11 @@ Summary:
 - Added schema versioning + migrations and doc metadata storage.
 - Added snapshot support, explain diagnostics, JSONL streaming, and corpus/memory stats.
 - Added structure-aware chunking, HNSW backend option, and safer doctor/compact flows.
-- Added CLI conveniences: `--rql-stdin`, `--filter @file`, completions, and man page output.
+- Added CLI conveniences: `--rql-stdin`, `--filter @file`, and completions.
 
 User impact:
 - New CLI flags (`--snapshot`, `--lexical-mode`, `--jsonl`, `--rql-stdin`, `--extract-meta`, `--parser`).
-- New `recall completions` and `recall man` commands.
+- New `recall completions` command.
 - `recall doctor --fix` and safer `recall compact` pre-checks.
 - Metadata filtering via `doc.meta.<key>` and `--extract-meta`.
 

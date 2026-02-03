@@ -22,7 +22,7 @@ Canonical source: this section defines the core principles and terms. Other docs
 
 ## Scope (v0.1)
 - Single-file store `recall.db` (SQLite-backed).
-- CLI: `init`, `add`, `rm`, `search`, `query`, `context`, plus `stats`, `doctor`, `compact`.
+- CLI: `init`, `add`, `rm`, `search`, `query`, `context`, plus `stats`, `doctor`, `compact`, `guide`.
 - Hybrid retrieval: lexical (FTS5 BM25) + semantic embeddings with explicit weights.
 - Deterministic ordering and tie-breaks; `--explain` for scoring stages.
 - Budgeted context assembly with provenance and optional diversity cap.
@@ -50,7 +50,7 @@ Canonical source: this section defines the core principles and terms. Other docs
 - `recall context <query>`
 - `recall stats`, `recall doctor`, `recall compact`
 - `recall export`, `recall import`
-- `recall completions`, `recall man`
+- `recall completions`, `recall guide`
 
 ### RQL (AI-native)
 ```

@@ -25,7 +25,7 @@ use clap_complete::Shell;
     version,
     about = "CLI-first hybrid search database",
     long_about = "Recall is a local, single-file database for deterministic retrieval over documents.\nIt supports hybrid semantic + lexical search, exact filters, and stable JSON output.\nCommands discover recall.db by walking up from the current directory; config is optional and lives in the OS config dir.",
-    after_help = "Examples:\n  recall init .\n  recall add . --glob \"**/*.{md,rs}\" --tag code\n  recall search \"retry backoff\" --filter \"doc.path GLOB '**/net/**'\" --json\n  recall query --rql \"FROM chunk USING semantic('vector index') LIMIT 6 SELECT chunk.text;\"\n  recall context \"ordering rules\" --budget-tokens 800 --diversity 2\n  recall search \"foo\" --filter @filters.txt\n  recall query --rql @query.rql --json\n\nNotes:\n  - FILTER is exact; fields must be qualified (doc.* or chunk.*).\n  - RQL supports FROM-first (preferred) and legacy SELECT-first forms.\n  - Snapshot tokens use RFC3339 (e.g. 2026-02-02T00:00:00Z).\n  - Use --json/--jsonl for machine-readable output."
+    after_help = "Examples:\n  recall init .\n  recall add . --glob \"**/*.{md,rs}\" --tag code\n  recall search \"retry backoff\" --filter \"doc.path GLOB '**/net/**'\" --json\n  recall query --rql \"FROM chunk USING semantic('vector index') LIMIT 6 SELECT chunk.text;\"\n  recall context \"ordering rules\" --budget-tokens 800 --diversity 2\n  recall search \"foo\" --filter @filters.txt\n  recall query --rql @query.rql --json\n\nNotes:\n  - FILTER is exact; fields must be qualified (doc.* or chunk.*).\n  - RQL supports FROM-first (preferred) and legacy SELECT-first forms.\n  - Snapshot tokens use RFC3339 (e.g. 2026-02-02T00:00:00Z).\n  - Use --json/--jsonl for machine-readable output.\n  - Use `recall guide` for the full usage guide."
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -132,8 +132,12 @@ pub enum Commands {
         shell: Shell,
     },
 
-    /// Generate a man page
-    Man,
+    /// Print the full usage guide
+    #[command(
+        long_about = "Print the full usage guide in Markdown format.",
+        after_help = "Examples:\n  recall guide\n  recall guide | less"
+    )]
+    Guide,
 }
 
 #[derive(Args, Debug)]

@@ -221,6 +221,18 @@ fn golden_cli_outputs() {
     let stats_json = run_json(&mut cmd, root);
     assert_schema(&schema, &stats_json);
     insta::assert_json_snapshot!("stats", normalize_json(stats_json));
+
+    // guide
+    let mut cmd = recall_cmd();
+    cmd.args(["guide"]);
+    let output = cmd.current_dir(root).output().expect("guide");
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    insta::assert_snapshot!("guide", stdout);
 }
 
 #[test]
