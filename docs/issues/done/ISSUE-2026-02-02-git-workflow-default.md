@@ -8,15 +8,15 @@ Updated: 2026-02-02
 
 Context:
 Agents need an explicit, enforced default to follow the full git workflow
-captured in WORKFLOWS.md.
+captured in AGENTS.md (inlined WORKFLOWS.md).
 
 Scope:
-- Add a MUST rule in DEVELOPMENT_RULES.md to follow WORKFLOWS.md
-  "Complete Workflow (Merged Summary)" unless the user opts out.
+- Add a MUST rule in AGENTS.md (inlined DEVELOPMENT_RULES.md) to follow
+  AGENTS.md (inlined WORKFLOWS.md) "Lean Workflow (Default)" unless the user opts out.
 - Keep the change documentation-only; no product behavior changes.
 
 Acceptance Criteria:
-- DEVELOPMENT_RULES.md contains the default workflow requirement.
+- AGENTS.md (inlined DEVELOPMENT_RULES.md) contains the default workflow requirement.
 - ROADMAP.md links to this issue.
 
 Out of Scope:
