@@ -7,9 +7,9 @@ Created: 2026-02-01
 Updated: 2026-02-02
 
 Context:
-- Shell completions, man page, and cargo install guidance.
+- Shell completions and cargo install guidance.
 Scope:
-- Shell completions, man page, and cargo install guidance.
+- Shell completions and cargo install guidance.
 Acceptance Criteria:
 - TBD
 Out of Scope:

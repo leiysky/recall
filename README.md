@@ -109,6 +109,12 @@ recall search "retry policy" --k 8 --filter "doc.tag = 'docs'" --json
 recall context "how we handle retries" --budget-tokens 1200 --diversity 2
 ```
 
+## Usage Guide
+The full usage guide is in `docs/USAGE.md` and is also available via:
+```
+recall guide
+```
+
 ## Which Command Should I Use?
 | Need | Command | Output |
 | --- | --- | --- |
@@ -116,7 +122,7 @@ recall context "how we handle retries" --budget-tokens 1200 --diversity 2
 | Structured filtering & fields | `recall query --rql` | Selected doc/chunk fields |
 | Build a model-ready context | `recall context` | Bounded context text/JSON |
 
-## Shell Completions and Man Page
+## Shell Completions and Guide
 Generate completions:
 ```
 recall completions bash > /tmp/recall.bash
@@ -124,9 +130,9 @@ recall completions zsh > /tmp/_recall
 recall completions fish > /tmp/recall.fish
 ```
 
-Generate a man page:
+Print the full usage guide:
 ```
-recall man > /tmp/recall.1
+recall guide
 ```
 
 ## CLI Commands
@@ -143,7 +149,7 @@ recall compact [--json]
 recall export [--out FILE] [--json]
 recall import <FILE> [--json]
 recall completions <shell>
-recall man
+recall guide
 ```
 
 ## Metadata Extraction (Optional)
@@ -198,7 +204,7 @@ FILTER doc.tag = "docs" AND doc.path GLOB "**/api/**"
 - PowerShell example: `--filter "doc.tag = 'docs' AND doc.path GLOB '**/api/**'"`.
 
 ## JSON Output
-Most commands support `--json` with a stable schema (including `schema_version`); `recall init`, `recall completions`, and `recall man` are plain text only. Errors are machine-parseable and include `code` and `message`. A `stats.snapshot` token is provided as a reproducibility hint, and `--snapshot` accepts tokens for deterministic pagination. Use `--jsonl` for streaming large result sets from `recall search` and `recall query`.
+Most commands support `--json` with a stable schema (including `schema_version`); `recall init`, `recall completions`, and `recall guide` are plain text only. Errors are machine-parseable and include `code` and `message`. A `stats.snapshot` token is provided as a reproducibility hint, and `--snapshot` accepts tokens for deterministic pagination. Use `--jsonl` for streaming large result sets from `recall search` and `recall query`.
 
 Minimal example:
 ```

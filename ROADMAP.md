@@ -83,7 +83,7 @@ Target window: 2026-03-15 to 2026-04-30.
 ### Milestone 4 — AI-native Interface
 - Support `--rql-stdin` / `--filter @file` and lexical parsing controls.
   (issue: docs/issues/done/ISSUE-2026-02-01-rql-stdin-filter-file.md)
-- Shell completions, man page, and `cargo install` guidance.
+- Shell completions and `cargo install` guidance.
   (issue: docs/issues/done/ISSUE-2026-02-01-shell-completions-manpage-install.md)
 - Add optional Markdown metadata extraction for doc-level filtering.
   (issue: docs/issues/done/ISSUE-2026-02-02-markdown-metadata-extraction.md)

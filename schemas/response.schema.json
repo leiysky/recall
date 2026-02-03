@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://recall.local/schema/response.json",
+  "$comment": "CLI includes `recall guide` for the usage document; JSON response schema unchanged.",
   "type": "object",
   "required": ["ok", "schema_version"],
   "properties": {
