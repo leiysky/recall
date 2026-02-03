@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod ann;
 mod cli;
 mod config;
 mod context;
@@ -146,7 +145,7 @@ fn cmd_init(path: Option<PathBuf>) -> Result<()> {
     std::fs::create_dir_all(&root).with_context(|| format!("create dir {root:?}"))?;
     let config = config::load_global_config()?;
     let store_path = root.join(&config.store_path);
-    store::Store::init(&store_path)?;
+    store::Store::init(&store_path, &config)?;
 
     println!("Initialized Recall store at {}", store_path.display());
     let config_hint = config::global_config_path()
@@ -169,7 +168,7 @@ fn cmd_add(
     json: bool,
 ) -> Result<()> {
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadWrite)?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadWrite, &ctx.config)?;
 
     let parser_hint = parse_parser_hint(parser.as_deref())?;
     let opts = ingest::IngestOptions {
@@ -204,7 +203,7 @@ fn cmd_add(
 
 fn cmd_rm(targets: Vec<String>, purge: bool, json: bool) -> Result<()> {
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadWrite)?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadWrite, &ctx.config)?;
     let mut removed = 0usize;
     for target in targets {
         if std::path::Path::new(&target).exists() || target.contains(std::path::MAIN_SEPARATOR) {
@@ -251,7 +250,7 @@ fn cmd_search(
     jsonl: bool,
 ) -> Result<()> {
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadOnly)?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadOnly, &ctx.config)?;
 
     let filter = load_filter(filter)?;
     let lexical_mode = parse_lexical_mode(&lexical_mode)?;
@@ -314,7 +313,7 @@ fn cmd_query(
     jsonl: bool,
 ) -> Result<()> {
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadOnly)?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadOnly, &ctx.config)?;
 
     let rql_text = if rql_stdin {
         let mut input = String::new();
@@ -390,7 +389,7 @@ fn cmd_export(out: Option<PathBuf>, json: bool) -> Result<()> {
         anyhow::bail!("--json requires --out for export");
     }
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadOnly)?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadOnly, &ctx.config)?;
 
     let stats = if let Some(path) = out {
         let file =
@@ -422,9 +421,9 @@ fn cmd_export(out: Option<PathBuf>, json: bool) -> Result<()> {
 
 fn cmd_import(path: PathBuf, json: bool) -> Result<()> {
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadWrite)?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadWrite, &ctx.config)?;
     let file = std::fs::File::open(&path).with_context(|| format!("open {}", path.display()))?;
-    let stats = transfer::import_store(&store, &ctx.config, file)?;
+    let stats = transfer::import_store(&store, file)?;
 
     if json {
         let resp = JsonResponse::ok().with_stats(StatsOut {
@@ -456,7 +455,7 @@ fn cmd_context(
     json: bool,
 ) -> Result<()> {
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadOnly)?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadOnly, &ctx.config)?;
 
     let output_json = match format.as_deref() {
         Some("json") => true,
@@ -527,7 +526,7 @@ fn cmd_context(
 
 fn cmd_stats(json: bool) -> Result<()> {
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadOnly)?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadOnly, &ctx.config)?;
     let stats = store.stats()?;
     let corpus = store.corpus_stats()?;
     let memory = memory_stats();
@@ -563,7 +562,7 @@ fn cmd_doctor(json: bool, fix: bool) -> Result<()> {
     } else {
         StoreMode::ReadOnly
     };
-    let store = store::Store::open(&ctx.store_path(), mode)?;
+    let store = store::Store::open(&ctx.store_path(), mode, &ctx.config)?;
     let report = store.integrity_check()?;
     let mut consistency = store.consistency_report()?;
     let mut actions = Vec::new();
@@ -573,13 +572,9 @@ fn cmd_doctor(json: bool, fix: bool) -> Result<()> {
             store.rebuild_fts()?;
             actions.push("rebuild fts index".to_string());
         }
-        if !consistency.ann_ok() {
-            let rebuilt = store.rebuild_ann_lsh(&ctx.config)?;
-            actions.push(format!("rebuild ann_lsh ({rebuilt} entries)"));
-        }
-        if ctx.config.ann_backend == "hnsw" && !consistency.hnsw_ok() {
-            let rebuilt = store.rebuild_ann_hnsw()?;
-            actions.push(format!("rebuild ann_hnsw ({rebuilt} nodes)"));
+        if !consistency.vec_ok() {
+            let rebuilt = store.rebuild_vec()?;
+            actions.push(format!("rebuild chunk_vec ({rebuilt} entries)"));
         }
         consistency = store.consistency_report()?;
     }
@@ -609,19 +604,12 @@ fn cmd_doctor(json: bool, fix: bool) -> Result<()> {
                 "missing": consistency.fts_missing,
                 "hint": if consistency.fts_ok() { "" } else { "Run `recall doctor --fix` to rebuild the FTS index." },
             },
-            "ann": {
-                "status": if consistency.ann_ok() { "ok" } else { "stale" },
+            "vec": {
+                "status": if consistency.vec_ok() { "ok" } else { "stale" },
                 "chunk_count": consistency.chunk_count,
-                "index_count": consistency.ann_count,
-                "missing": consistency.ann_missing,
-                "hint": if consistency.ann_ok() { "" } else { "Run `recall doctor --fix` to rebuild the ANN index." },
-            },
-            "hnsw": {
-                "status": if consistency.hnsw_ok() { "ok" } else { "stale" },
-                "chunk_count": consistency.chunk_count,
-                "index_count": consistency.hnsw_count,
-                "missing": consistency.hnsw_missing,
-                "hint": if consistency.hnsw_ok() { "" } else { "Run `recall doctor --fix` to rebuild the HNSW index." },
+                "index_count": consistency.vec_count,
+                "missing": consistency.vec_missing,
+                "hint": if consistency.vec_ok() { "" } else { "Run `recall doctor --fix` to rebuild the vector index." },
             }
         });
         let resp = JsonResponse::ok()
@@ -637,17 +625,10 @@ fn cmd_doctor(json: bool, fix: bool) -> Result<()> {
             consistency.fts_missing
         );
         println!(
-            "ANN: {} (missing {})",
-            if consistency.ann_ok() { "ok" } else { "stale" },
-            consistency.ann_missing
+            "VEC: {} (missing {})",
+            if consistency.vec_ok() { "ok" } else { "stale" },
+            consistency.vec_missing
         );
-        if ctx.config.ann_backend == "hnsw" {
-            println!(
-                "HNSW: {} (missing {})",
-                if consistency.hnsw_ok() { "ok" } else { "stale" },
-                consistency.hnsw_missing
-            );
-        }
         for action in actions {
             println!("Action: {action}");
         }
@@ -658,17 +639,15 @@ fn cmd_doctor(json: bool, fix: bool) -> Result<()> {
 
 fn cmd_compact(json: bool) -> Result<()> {
     let ctx = ConfigCtx::load_from_cwd()?;
-    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadWrite)?;
+    let store = store::Store::open(&ctx.store_path(), StoreMode::ReadWrite, &ctx.config)?;
     let integrity = store.integrity_check()?;
     let consistency = store.consistency_report()?;
-    let hnsw_issue = ctx.config.ann_backend == "hnsw" && !consistency.hnsw_ok();
-    if integrity.status != "ok" || !consistency.fts_ok() || !consistency.ann_ok() || hnsw_issue {
+    if integrity.status != "ok" || !consistency.fts_ok() || !consistency.vec_ok() {
         anyhow::bail!(
-            "compact aborted: integrity={}, fts_missing={}, ann_missing={}, hnsw_missing={}",
+            "compact aborted: integrity={}, fts_missing={}, vec_missing={}",
             integrity.status,
             consistency.fts_missing,
-            consistency.ann_missing,
-            consistency.hnsw_missing
+            consistency.vec_missing
         );
     }
     store.compact()?;

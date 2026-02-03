@@ -371,25 +371,18 @@ fn structured_query_order_by_tiebreaks() {
 }
 
 #[test]
-fn hnsw_backend_search() {
+fn sqlite_vec_search() {
     let schema = load_schema();
     let config_temp = TempDir::new().expect("config tempdir");
     let config_root = config_temp.path();
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();
     fs::create_dir_all(root.join("docs")).expect("docs dir");
-    fs::write(root.join("docs/a.txt"), "hello hnsw\n").expect("write file");
+    fs::write(root.join("docs/a.txt"), "hello sqlite vec\n").expect("write file");
 
     let mut cmd = recall_cmd_with_env(config_root);
     cmd.args(["init", "."]);
     assert!(cmd.current_dir(root).output().unwrap().status.success());
-
-    let config_path = global_config_path(config_root);
-    fs::create_dir_all(config_path.parent().expect("config parent")).expect("config dir");
-    let config = String::from(
-        "store_path = \"recall.db\"\nchunk_tokens = 256\noverlap_tokens = 32\nembedding_dim = 256\nembedding = \"hash\"\nann_backend = \"hnsw\"\nann_bits = 16\nann_seed = 42\nbm25_weight = 0.5\nvector_weight = 0.5\nmax_limit = 1000\n",
-    );
-    fs::write(&config_path, config).expect("write config");
 
     let mut cmd = recall_cmd_with_env(config_root);
     cmd.args(["add", "docs", "--glob", "**/*.txt", "--json"]);
@@ -397,7 +390,12 @@ fn hnsw_backend_search() {
     assert_schema(&schema, &add_json);
 
     let mut cmd = recall_cmd_with_env(config_root);
-    cmd.args(["search", "hnsw", "--json"]);
+    cmd.args(["search", "sqlite", "--vector", "--json"]);
     let search_json = run_json(&mut cmd, root);
     assert_schema(&schema, &search_json);
+    let results = search_json
+        .get("results")
+        .and_then(|v| v.as_array())
+        .expect("results array");
+    assert!(!results.is_empty(), "expected sqlite-vec results");
 }

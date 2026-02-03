@@ -115,7 +115,7 @@ impl JsonResponse {
     pub fn ok() -> Self {
         Self {
             ok: true,
-            schema_version: "1".to_string(),
+            schema_version: "2".to_string(),
             ..Default::default()
         }
     }
@@ -123,7 +123,7 @@ impl JsonResponse {
     pub fn error(code: &str, message: &str) -> Self {
         Self {
             ok: false,
-            schema_version: "1".to_string(),
+            schema_version: "2".to_string(),
             error: Some(ErrorOut {
                 code: code.to_string(),
                 message: message.to_string(),

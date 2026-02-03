@@ -1,13 +1,14 @@
 ---
 source: tests/cli_golden.rs
+assertion_line: 166
 expression: normalize_json(search_json)
 ---
 {
   "explain": {
     "cache": {
-      "ann": "none",
       "embedding": "none",
-      "fts": "none"
+      "fts": "none",
+      "vec": "none"
     },
     "candidates": {
       "combined": 1,
@@ -21,9 +22,6 @@ expression: normalize_json(search_json)
     },
     "mode": "hybrid",
     "resolved_config": {
-      "ann_backend": "lsh",
-      "ann_bits": 16,
-      "ann_seed": 42,
       "bm25_weight": 0.5,
       "chunk_tokens": 256,
       "embedding": "hash",
@@ -31,6 +29,7 @@ expression: normalize_json(search_json)
       "lexical_mode": "fts5",
       "max_limit": 1000,
       "overlap_tokens": 32,
+      "vector_index": "sqlite-vec",
       "vector_weight": 0.5
     },
     "snapshot": ""
@@ -64,12 +63,12 @@ expression: normalize_json(search_json)
       },
       "explain": {
         "lexical": 1.0,
-        "semantic": 0.4472136199474334
+        "semantic": 0.4472135901451111
       },
       "score": 0.7236068248748779
     }
   ],
-  "schema_version": "1",
+  "schema_version": "2",
   "stats": {
     "chunk_count": null,
     "db_size_bytes": null,

@@ -13,23 +13,19 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
-use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::time::Instant;
 
 use anyhow::Result;
-use rusqlite::OptionalExtension;
 use rusqlite::Row;
 use rusqlite::params_from_iter;
 use rusqlite::types::Value as SqlValue;
 use serde_json::json;
 
-use crate::ann;
 use crate::config::Config;
 use crate::embed::Embedder;
 use crate::embed::HashEmbedder;
-use crate::embed::cosine_similarity;
-use crate::embed::from_bytes;
+use crate::embed::to_bytes;
 use crate::model::ChunkRow;
 use crate::model::DocRow;
 use crate::model::ScoredItem;
@@ -354,7 +350,7 @@ fn select_doc_items() -> Vec<SqlSelectItem> {
     ]
 }
 
-fn select_chunk_doc_items(include_embedding: bool) -> Vec<SqlSelectItem> {
+fn select_chunk_doc_items() -> Vec<SqlSelectItem> {
     let mut items = vec![
         SqlSelectItem::new(SqlExpr::column(SqlColumn::ChunkId)),
         SqlSelectItem::new(SqlExpr::column(SqlColumn::ChunkDocId)),
@@ -362,11 +358,6 @@ fn select_chunk_doc_items(include_embedding: bool) -> Vec<SqlSelectItem> {
         SqlSelectItem::new(SqlExpr::column(SqlColumn::ChunkTokens)),
         SqlSelectItem::new(SqlExpr::column(SqlColumn::ChunkText)),
     ];
-    if include_embedding {
-        items.push(SqlSelectItem::new(SqlExpr::column(
-            SqlColumn::ChunkEmbedding,
-        )));
-    }
     items.extend(vec![
         SqlSelectItem::new(SqlExpr::column(SqlColumn::DocId)),
         SqlSelectItem::new(SqlExpr::column(SqlColumn::DocPath)),
@@ -380,7 +371,7 @@ fn select_chunk_doc_items(include_embedding: bool) -> Vec<SqlSelectItem> {
 }
 
 fn select_chunk_doc_items_with_bm25() -> Vec<SqlSelectItem> {
-    let mut items = select_chunk_doc_items(false);
+    let mut items = select_chunk_doc_items();
     items.push(SqlSelectItem::new(SqlExpr::raw("bm25(chunk_fts)")).alias("bm25"));
     items
 }
@@ -427,6 +418,15 @@ pub fn search_chunks_with_inputs(
     };
     timings.filter_ms = Some(filter_start.elapsed().as_millis() as i64);
     let filter = apply_snapshot_filter(filter, &opts.snapshot);
+    let needs_filter = filter_expr.is_some() || opts.snapshot.is_some();
+    let mut candidate_k = opts.k;
+    if needs_filter {
+        candidate_k = usize::max(opts.k, 64);
+        let cap = config.max_limit.max(opts.k);
+        if candidate_k > cap {
+            candidate_k = cap;
+        }
+    }
 
     let mut lexical_results = Vec::new();
     let mut lexical_run: Option<LexicalRun> = None;
@@ -450,7 +450,8 @@ pub fn search_chunks_with_inputs(
     if opts.use_semantic {
         let sem_start = Instant::now();
         if let Some(sem_query) = inputs.semantic.clone() {
-            semantic_results = semantic_search(store, config, &sem_query, &filter, opts.k)?;
+            semantic_results =
+                semantic_search(store, config, &sem_query, &filter, opts.k, candidate_k)?;
         } else {
             explain_warnings
                 .push("semantic search requested but no semantic query provided".to_string());
@@ -558,8 +559,8 @@ fn build_explain_payload(
         "cache".into(),
         json!({
             "embedding": "none",
-            "ann": "none",
             "fts": "none",
+            "vec": "none",
         }),
     );
     obj.insert(
@@ -567,9 +568,7 @@ fn build_explain_payload(
         json!({
             "embedding": config.embedding,
             "embedding_dim": config.embedding_dim,
-            "ann_backend": config.ann_backend,
-            "ann_bits": config.ann_bits,
-            "ann_seed": config.ann_seed,
+            "vector_index": "sqlite-vec",
             "bm25_weight": config.bm25_weight,
             "vector_weight": config.vector_weight,
             "max_limit": config.max_limit,
@@ -681,7 +680,7 @@ fn run_structured_query(
     if q.table == Table::Chunk {
         let where_clause = base_chunk_doc_filter().and(filter.clone());
         let mut builder = SqlSelectBuilder::new(SqlTable::Chunk)
-            .select(select_chunk_doc_items(false))
+            .select(select_chunk_doc_items())
             .join(SqlJoin::inner(
                 SqlTable::Doc,
                 SqlColumn::DocId,
@@ -925,225 +924,50 @@ fn semantic_search(
     query: &str,
     filter: &SqlFragment,
     k: usize,
+    candidate_k: usize,
 ) -> Result<Vec<ScoredItem>> {
     let embedder = HashEmbedder::new(config.embedding_dim);
     let query_vec = embedder.embed(query);
-    let backend = config.ann_backend.as_str();
-    if backend.eq_ignore_ascii_case("hnsw") {
-        if let Ok(results) = semantic_search_hnsw(store, config, &query_vec, filter, k)
-            && results.len() >= k
-        {
-            return Ok(results);
-        }
-        if config.ann_bits > 0
-            && let Ok(results) = semantic_search_lsh(store, config, &query_vec, filter, k)
-            && results.len() >= k
-        {
-            return Ok(results);
-        }
-    } else if backend.eq_ignore_ascii_case("lsh") || backend.is_empty() {
-        if config.ann_bits > 0
-            && let Ok(results) = semantic_search_lsh(store, config, &query_vec, filter, k)
-            && results.len() >= k
-        {
-            return Ok(results);
-        }
-    } else if backend.eq_ignore_ascii_case("linear") || backend.eq_ignore_ascii_case("flat") {
-        // fall through to linear
-    } else {
-        if config.ann_bits > 0
-            && let Ok(results) = semantic_search_lsh(store, config, &query_vec, filter, k)
-            && results.len() >= k
-        {
-            return Ok(results);
-        }
-    }
-
-    semantic_search_linear(store, &query_vec, filter, k)
+    semantic_search_vec(store, &query_vec, filter, k, candidate_k)
 }
 
-fn semantic_search_lsh(
-    store: &Store,
-    config: &Config,
-    query_vec: &[f32],
-    filter: &SqlFragment,
-    k: usize,
-) -> Result<Vec<ScoredItem>> {
-    let sig = ann::signature(query_vec, config.ann_bits, config.ann_seed);
-    let sigs = ann::neighbor_signatures(sig, config.ann_bits);
-    let sig_values: Vec<SqlValue> = sigs.into_iter().map(|s| SqlValue::from(s as i64)).collect();
-    let sig_clause = SqlFragment::in_list(SqlExpr::column(SqlColumn::AnnLshSignature), sig_values)?;
-    let where_clause = base_chunk_doc_filter().and(filter.clone()).and(sig_clause);
-    let (sql, params) = SqlSelectBuilder::new(SqlTable::AnnLsh)
-        .select(select_chunk_doc_items(true))
-        .join(SqlJoin::inner(
-            SqlTable::Chunk,
-            SqlColumn::AnnLshChunkId,
-            SqlColumn::ChunkId,
-        ))
-        .join(SqlJoin::inner(
-            SqlTable::Doc,
-            SqlColumn::DocId,
-            SqlColumn::ChunkDocId,
-        ))
-        .where_clause(where_clause)
-        .build();
-
-    let mut stmt = store.conn.prepare(&sql)?;
-    let rows = stmt.query_map(params_from_iter(params), |row| {
-        let (chunk, doc) = map_chunk_row_with_embedding(row)?;
-        Ok((chunk, doc))
-    })?;
-
-    let mut scored = Vec::new();
-    for row in rows {
-        let (chunk, doc) = row?;
-        let score = cosine_similarity(query_vec, &chunk.embedding);
-        scored.push(ScoredItem {
-            score,
-            lexical: None,
-            semantic: Some(score),
-            doc,
-            chunk: Some(chunk.into_chunk_row()),
-        });
-    }
-
-    sort_by_score_with_tiebreak(&mut scored, false);
-    scored.truncate(k);
-    Ok(scored)
-}
-
-fn semantic_search_hnsw(
-    store: &Store,
-    config: &Config,
-    query_vec: &[f32],
-    filter: &SqlFragment,
-    k: usize,
-) -> Result<Vec<ScoredItem>> {
-    if config.ann_bits == 0 {
-        return Ok(Vec::new());
-    }
-    let sig = ann::signature(query_vec, config.ann_bits, config.ann_seed);
-    let sigs = ann::neighbor_signatures(sig, config.ann_bits);
-    let sig_values: Vec<SqlValue> = sigs.into_iter().map(|s| SqlValue::from(s as i64)).collect();
-    let sig_clause = SqlFragment::in_list(SqlExpr::column(SqlColumn::AnnLshSignature), sig_values)?;
-    let seed_limit = usize::max(32, k.saturating_mul(4));
-    let (sql, params) = SqlSelectBuilder::new(SqlTable::AnnLsh)
-        .select(vec![SqlSelectItem::new(SqlExpr::column(
-            SqlColumn::AnnLshChunkId,
-        ))])
-        .where_clause(sig_clause)
-        .limit(seed_limit)
-        .build();
-    let mut stmt = store.conn.prepare(&sql)?;
-    let rows = stmt.query_map(params_from_iter(params), |row| row.get::<_, String>(0))?;
-    let mut candidates: BTreeSet<String> = BTreeSet::new();
-    let mut seeds = Vec::new();
-    for row in rows {
-        let id = row?;
-        seeds.push(id.clone());
-        candidates.insert(id);
-    }
-    if seeds.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    for id in &seeds {
-        let (sql, params) = SqlSelectBuilder::new(SqlTable::AnnHnsw)
-            .select(vec![SqlSelectItem::new(SqlExpr::column(
-                SqlColumn::AnnHnswNeighbors,
-            ))])
-            .where_clause(SqlFragment::cmp(
-                SqlExpr::column(SqlColumn::AnnHnswChunkId),
-                "=",
-                SqlValue::from(id.clone()),
-            ))
-            .build();
-        let neighbors: Option<String> = store
-            .conn
-            .query_row(&sql, params_from_iter(params), |row| row.get(0))
-            .optional()?;
-        if let Some(raw) = neighbors
-            && let Ok(list) = serde_json::from_str::<Vec<String>>(&raw)
-        {
-            for neighbor in list {
-                candidates.insert(neighbor);
-            }
-        }
-    }
-
-    if candidates.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let candidate_values: Vec<SqlValue> = candidates.into_iter().map(SqlValue::from).collect();
-    let id_clause = SqlFragment::in_list(SqlExpr::column(SqlColumn::ChunkId), candidate_values)?;
-    let where_clause = base_chunk_doc_filter().and(filter.clone()).and(id_clause);
-    let (sql, params) = SqlSelectBuilder::new(SqlTable::Chunk)
-        .select(select_chunk_doc_items(true))
-        .join(SqlJoin::inner(
-            SqlTable::Doc,
-            SqlColumn::DocId,
-            SqlColumn::ChunkDocId,
-        ))
-        .where_clause(where_clause)
-        .build();
-    let mut stmt = store.conn.prepare(&sql)?;
-    let rows = stmt.query_map(params_from_iter(params), |row| {
-        let (chunk, doc) = map_chunk_row_with_embedding(row)?;
-        Ok((chunk, doc))
-    })?;
-
-    let mut scored = Vec::new();
-    for row in rows {
-        let (chunk, doc) = row?;
-        let score = cosine_similarity(query_vec, &chunk.embedding);
-        scored.push(ScoredItem {
-            score,
-            lexical: None,
-            semantic: Some(score),
-            doc,
-            chunk: Some(chunk.into_chunk_row()),
-        });
-    }
-
-    sort_by_score_with_tiebreak(&mut scored, false);
-    scored.truncate(k);
-    Ok(scored)
-}
-
-fn semantic_search_linear(
+fn semantic_search_vec(
     store: &Store,
     query_vec: &[f32],
     filter: &SqlFragment,
     k: usize,
+    candidate_k: usize,
 ) -> Result<Vec<ScoredItem>> {
+    if k == 0 {
+        return Ok(Vec::new());
+    }
     let where_clause = base_chunk_doc_filter().and(filter.clone());
-    let (sql, params) = SqlSelectBuilder::new(SqlTable::Chunk)
-        .select(select_chunk_doc_items(true))
-        .join(SqlJoin::inner(
-            SqlTable::Doc,
-            SqlColumn::DocId,
-            SqlColumn::ChunkDocId,
-        ))
-        .where_clause(where_clause)
-        .build();
+    let sql = format!(
+        "WITH knn AS (\n  SELECT chunk_rowid, distance\n  FROM chunk_vec\n  WHERE embedding MATCH ? AND k = ?\n)\nSELECT chunk.id, chunk.doc_id, chunk.offset, chunk.tokens, chunk.text,\n       doc.id, doc.path, doc.mtime, doc.hash, doc.tag, doc.source, doc.meta,\n       knn.distance\nFROM knn\nINNER JOIN chunk ON chunk.rowid = knn.chunk_rowid\nINNER JOIN doc ON doc.id = chunk.doc_id\nWHERE {}",
+        where_clause.sql
+    );
+    let mut params = Vec::new();
+    params.push(SqlValue::from(to_bytes(query_vec)));
+    params.push(SqlValue::from(candidate_k as i64));
+    params.extend(where_clause.params.clone());
+
     let mut stmt = store.conn.prepare(&sql)?;
     let rows = stmt.query_map(params_from_iter(params), |row| {
-        let (chunk, doc) = map_chunk_row_with_embedding(row)?;
-        Ok((chunk, doc))
+        let distance: f32 = row.get(12)?;
+        let (chunk, doc) = map_chunk_row(row)?;
+        Ok((chunk, doc, distance))
     })?;
 
     let mut scored = Vec::new();
     for row in rows {
-        let (chunk, doc) = row?;
-        let score = cosine_similarity(query_vec, &chunk.embedding);
+        let (chunk, doc, distance) = row?;
+        let score = 1.0 - distance;
         scored.push(ScoredItem {
             score,
             lexical: None,
             semantic: Some(score),
             doc,
-            chunk: Some(chunk.into_chunk_row()),
+            chunk: Some(chunk),
         });
     }
 
@@ -1239,41 +1063,6 @@ fn map_chunk_row(row: &Row) -> rusqlite::Result<(ChunkRow, DocRow)> {
         tag: row.get(9)?,
         source: row.get(10)?,
         meta: row.get(11)?,
-    };
-    Ok((chunk, doc))
-}
-
-#[derive(Debug, Clone)]
-struct ChunkRowWithEmbedding {
-    inner: ChunkRow,
-    embedding: Vec<f32>,
-}
-
-impl ChunkRowWithEmbedding {
-    fn into_chunk_row(self) -> ChunkRow {
-        self.inner
-    }
-}
-
-fn map_chunk_row_with_embedding(row: &Row) -> rusqlite::Result<(ChunkRowWithEmbedding, DocRow)> {
-    let chunk = ChunkRowWithEmbedding {
-        inner: ChunkRow {
-            id: row.get(0)?,
-            doc_id: row.get(1)?,
-            offset: row.get(2)?,
-            tokens: row.get(3)?,
-            text: row.get(4)?,
-        },
-        embedding: from_bytes(row.get::<_, Vec<u8>>(5)?.as_slice()),
-    };
-    let doc = DocRow {
-        id: row.get(6)?,
-        path: row.get(7)?,
-        mtime: row.get(8)?,
-        hash: row.get(9)?,
-        tag: row.get(10)?,
-        source: row.get(11)?,
-        meta: row.get(12)?,
     };
     Ok((chunk, doc))
 }

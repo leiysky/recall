@@ -27,7 +27,6 @@ use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 use walkdir::WalkDir;
 
-use crate::ann;
 use crate::config::Config;
 use crate::embed::Embedder;
 use crate::embed::HashEmbedder;
@@ -121,10 +120,6 @@ pub fn ingest_paths(
                 }
             }
         }
-    }
-
-    if config.ann_backend == "hnsw" {
-        store.rebuild_ann_hnsw()?;
     }
 
     Ok(report)
@@ -251,7 +246,6 @@ fn ingest_file(
             let chunk_id = sha256_hex(format!("{}:{}", doc_id, offset).as_bytes());
             let embedding = embedder.embed(&chunk_text);
             let embedding_bytes = to_bytes(&embedding);
-            let ann_sig = ann::signature(&embedding, config.ann_bits, config.ann_seed);
 
             store.conn.execute(
                 "INSERT INTO chunk (id, doc_id, offset, tokens, text, embedding, deleted) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
@@ -261,12 +255,13 @@ fn ingest_file(
                     offset as i64,
                     (end - start) as i64,
                     chunk_text,
-                    embedding_bytes,
+                    embedding_bytes.as_slice(),
                 ],
             )?;
+            let rowid = store.conn.last_insert_rowid();
             store.conn.execute(
-                "INSERT INTO ann_lsh (signature, chunk_id, doc_id) VALUES (?1, ?2, ?3)",
-                rusqlite::params![ann_sig as i64, chunk_id, doc_id],
+                "INSERT INTO chunk_vec (chunk_rowid, embedding) VALUES (?1, ?2)",
+                rusqlite::params![rowid, embedding_bytes.as_slice()],
             )?;
             report.chunks_added += 1;
 

@@ -21,8 +21,6 @@ pub enum SqlTable {
     Doc,
     Chunk,
     ChunkFts,
-    AnnLsh,
-    AnnHnsw,
 }
 
 impl SqlTable {
@@ -31,8 +29,6 @@ impl SqlTable {
             SqlTable::Doc => "doc",
             SqlTable::Chunk => "chunk",
             SqlTable::ChunkFts => "chunk_fts",
-            SqlTable::AnnLsh => "ann_lsh",
-            SqlTable::AnnHnsw => "ann_hnsw",
         }
     }
 }
@@ -56,10 +52,6 @@ pub enum SqlColumn {
     ChunkEmbedding,
     ChunkDeleted,
     ChunkFtsRowid,
-    AnnLshSignature,
-    AnnLshChunkId,
-    AnnHnswChunkId,
-    AnnHnswNeighbors,
 }
 
 impl SqlColumn {
@@ -82,10 +74,6 @@ impl SqlColumn {
             SqlColumn::ChunkEmbedding => "chunk.embedding",
             SqlColumn::ChunkDeleted => "chunk.deleted",
             SqlColumn::ChunkFtsRowid => "chunk_fts.rowid",
-            SqlColumn::AnnLshSignature => "ann_lsh.signature",
-            SqlColumn::AnnLshChunkId => "ann_lsh.chunk_id",
-            SqlColumn::AnnHnswChunkId => "ann_hnsw.chunk_id",
-            SqlColumn::AnnHnswNeighbors => "ann_hnsw.neighbors",
         }
     }
 }

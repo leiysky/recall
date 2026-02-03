@@ -318,9 +318,8 @@ EOF
 - `src/`
   - `cli.rs` — command parsing and flags
   - `config.rs` — config load/write
-  - `context.rs` — packing policy
-  - `ann.rs` — LSH signature helpers
-  - `embed.rs` — embedding provider(s)
+- `context.rs` — packing policy
+- `embed.rs` — embedding provider(s)
   - `ingest.rs` — file ingest + chunking
   - `model.rs` — shared domain types
   - `output.rs` — JSON response helpers
@@ -480,10 +479,9 @@ Notes:
 
 ##### Hybrid Retrieval
 - Lexical search via SQLite FTS5 (BM25-like); sanitized fallback if parsing fails.
-- Semantic search via embeddings (default deterministic hash).
+- Semantic search via embeddings (default deterministic hash) using sqlite-vec `vec0` with cosine distance.
 - Scores are normalized and combined with explicit weights from config.
 - Filters are strict and never invoke semantic inference.
-- ANN backend is configurable (`lsh`, `hnsw`, or `linear`) with LSH fallback.
 
 ##### Context Assembly
 - Hard `budget_tokens`; context never exceeds the budget.
@@ -496,11 +494,12 @@ Notes:
 - Single-file store `recall.db` backed by SQLite.
 - Single-writer, multi-reader semantics with a sibling lock file.
 - No network calls unless explicitly configured by the user.
-- On-disk schema metadata is stored in a `meta` table and migrated on open.
+- On-disk schema metadata is stored in a `meta` table; unsupported schema versions are rejected (re-init required).
 
 ##### Data Model (Logical)
 - `doc`: `id`, `path`, `mtime`, `hash`, `tag`, `source`, `meta`, `deleted`.
 - `chunk`: `id`, `doc_id`, `offset`, `tokens`, `text`, `embedding`, `deleted`.
+- `chunk_vec`: sqlite-vec virtual table keyed by `chunk_rowid` with `embedding` for KNN.
 - `meta`: key/value schema metadata.
 
 ##### Document Metadata
@@ -528,8 +527,6 @@ Recall uses an optional global config file in the OS config directory:
 - `store_path`
 - `chunk_tokens`, `overlap_tokens`
 - `embedding`, `embedding_dim`
-- `ann_backend` (`lsh`, `hnsw`, `linear`)
-- `ann_bits`, `ann_seed`
 - `bm25_weight`, `vector_weight`
 - `max_limit`
 

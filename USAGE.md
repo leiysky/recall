@@ -11,6 +11,7 @@ recall add . --glob "**/*.{md,rs,ts,py}" --tag code
 recall search "retry backoff" --k 8 --filter "doc.path GLOB '**/net/**'" --json
 recall context "retry backoff" --budget-tokens 1200 --diversity 2
 ```
+Note: schema v2 uses sqlite-vec for vector search and is not compatible with older stores; re-init and re-ingest are required after upgrading.
 
 ## Stores and Discovery
 - `recall init <path>` creates `recall.db` in the target directory. The
@@ -144,9 +145,6 @@ chunk_tokens = 256
 overlap_tokens = 32
 embedding = "hash"
 embedding_dim = 256
-ann_backend = "lsh"
-ann_bits = 16
-ann_seed = 42
 bm25_weight = 0.5
 vector_weight = 0.5
 max_limit = 1000

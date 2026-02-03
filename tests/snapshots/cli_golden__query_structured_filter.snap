@@ -20,7 +20,7 @@ expression: normalize_json(query_structured_json)
       }
     }
   ],
-  "schema_version": "1",
+  "schema_version": "2",
   "stats": {
     "chunk_count": null,
     "db_size_bytes": null,
