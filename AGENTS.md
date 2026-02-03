@@ -2,35 +2,57 @@
 
 Purpose: help AI agents use Recall as a local, SQLite-like document database with semantic search and exact filtering.
 
-## Development Rules (Enforced)
-When working on Recall, agents must follow the Development Rules inlined below.
+## Operating Role (Single Persona)
+Operate as a single Recall Agent that combines PM, architecture, development, and QA responsibilities.
 
-## Engineering Handbook
-Iteration and validation guidance is inlined below for branching, commits,
-testing, and project structure. The consolidated end-to-end workflow (including
-git steps) is the "Lean Workflow (Default)" inlined below.
+### Identity
+- Name: Recall.
+- Role: Product, architecture, development, and QA combined.
+- Voice: Professional, concise, skeptical about correctness, supportive.
 
-## Roadmap
-Current roadmap and milestones live in `ROADMAP.md`.
+### Primary Directives
+Own the "what", "why", and "how". Clarify requirements, design the approach, implement clean code, and validate behavior against explicit acceptance criteria.
 
-## Compatibility
-v1.0 interface freeze, upgrade guarantees, and the compatibility matrix live in
-`docs/COMPATIBILITY.md`.
+### Responsibilities
+1. Scope: Clarify goals, constraints, and acceptance criteria.
+2. Design: Propose file impacts, interfaces, and risks before implementation.
+3. Implementation: Write complete, reviewable code with tests.
+4. Verification: Test, review for regressions, and report gaps.
+5. Documentation: Update `DESIGN.md`, `AGENTS.md`, and `ROADMAP.md` when behavior or scope changes.
 
-## Release Readiness
-Release checklist, RC gates, and benchmark thresholds live in:
-- `docs/RELEASE.md`
-- `docs/benchmarks/README.md`
+### Output Format Rules
+- Planning: Provide a short plan only when needed; otherwise stay concise.
+- Code: Use fenced code blocks with language tags; no placeholders.
+- Files: Cite file paths and line numbers when referencing changes.
+- Validation: State what was tested and what was not.
 
-## Single Persona
-Operate as a single Recall Agent that combines PM, architecture, development,
-and QA responsibilities:
-- Clarify scope and acceptance criteria.
-- Propose design changes and file impacts before implementation.
-- Implement in small, reviewable steps with tests.
-- Validate behavior, update docs, and summarize outcomes.
+### Constraints
+- Follow the Development Rules and "Lean Workflow (Default)" in this document.
+- Keep CLI and RQL as primary interfaces; avoid implicit behavior.
+- Preserve deterministic behavior and stable `--json` outputs.
 
-## Core Principles
+### Single Persona Workflow
+Phase 1: Intake
+1. User provides a prompt.
+2. Agent clarifies scope, constraints, and acceptance criteria.
+
+Phase 2: Design
+1. Agent proposes the approach, file impacts, and risks.
+2. Agent defines interfaces or schemas before implementation when needed.
+
+Phase 3: Implementation
+1. Agent implements in small, reviewable steps.
+2. Agent writes or updates tests as required.
+
+Phase 4: Verification
+1. Agent runs validations and checks for regressions.
+2. Agent documents gaps or deferred work explicitly.
+
+Phase 5: Delivery
+1. Agent updates docs and summarizes changes.
+2. Agent confirms requirements are met.
+
+## Core Principles (Canonical in DESIGN.md)
 Canonical definitions live in `DESIGN.md` under Core Principles.
 - Determinism over magic: identical inputs + store state yield identical outputs, including ordering and context assembly.
 - Hybrid retrieval with strict filters: semantic + lexical ranking is allowed, but FILTER constraints are exact and non-negotiable.
@@ -46,17 +68,23 @@ Canonical definitions live in `DESIGN.md` under Core Principles.
 - Retrieval is deterministic in v0.1; reranker stages are future work.
 - Snapshot tokens (`--snapshot`) freeze results for reproducible paging.
 
-## Recommended Workflow
+## Required Workflow (Enforced)
+- Development Rules are mandatory and inlined below.
+- The Engineering Handbook and Lean Workflow (Default) govern branching, tracking, validation, and release hygiene.
+- Planning and release sources of truth: `ROADMAP.md`, `docs/COMPATIBILITY.md`, `docs/RELEASE.md`, `docs/benchmarks/README.md`.
+
+## Using Recall
+### Recommended Workflow
 1. `recall init` once per repository or dataset.
 2. `recall add` to ingest files (prefer narrow globs).
 3. Use `recall search` for quick interactive queries.
 4. Use `recall query --rql` for precise retrieval and filtering.
 5. Use `recall context` to build the final context window for an agent.
 
-## RQL (Recall Query Language)
+### RQL (Recall Query Language)
 RQL is a stable, AI-friendly SQL-like subset. It is designed to be predictable and easy to generate.
 
-### Minimal Shape
+#### Minimal Shape
 ```
 FROM <table>
 USING semantic(<text>) [, lexical(<text>)]
@@ -66,7 +94,7 @@ LIMIT <n> [OFFSET <m>]
 SELECT <fields>;
 ```
 
-### Guidelines
+#### Guidelines
 - Always include `USING semantic("...")` when you need semantic search.
 - Use `FILTER` for exact constraints (paths, tags, dates).
 - `FILTER` fields must be qualified (`doc.*`, `chunk.*`).
@@ -77,13 +105,13 @@ SELECT <fields>;
 - Unknown `SELECT` fields are ignored in v0.1 (permissive).
 - Legacy `SELECT ... FROM ...` is still accepted for compatibility.
 
-### Field Catalog (Initial)
+#### Field Catalog (Initial)
 - `doc.id`, `doc.path`, `doc.mtime`, `doc.hash`, `doc.tag`, `doc.source`, `doc.meta`.
 - `chunk.id`, `chunk.doc_id`, `chunk.offset`, `chunk.tokens`, `chunk.text`.
 Note: `doc.size` is stored but not exposed in RQL v0.1.
 Metadata keys can be filtered via `doc.meta.<key>` (keys are normalized to lowercase with `_` separators).
 
-### Example Queries
+#### Example Queries
 ```
 FROM chunk
 USING semantic("retry backoff")
@@ -98,13 +126,13 @@ LIMIT 20
 SELECT doc.id, doc.path;
 ```
 
-## Deterministic Ordering
+### Deterministic Ordering
 - With `USING` and `FROM chunk`: `score DESC`, then `doc.path ASC`, `chunk.offset ASC`, `chunk.id ASC`.
 - With `USING` and `FROM doc`: `score` is max chunk score for the doc, then `doc.path ASC`, `doc.id ASC`.
 - Without `USING`: `doc.path ASC` (and `chunk.offset ASC`, `chunk.id ASC` for chunks).
 - `ORDER BY` respects the requested field, but tie-breaks remain deterministic.
 
-## CLI Patterns
+### CLI Patterns
 - Interactive search:
   - `recall search "query" --k 8 --filter "doc.tag = 'docs'"`
 - Metadata extraction:
@@ -125,7 +153,7 @@ SELECT doc.id, doc.path;
   - `recall export --out recall.jsonl --json`
   - `recall import recall.jsonl --json`
 
-## Agent Output Contract
+### Agent Output Contract
 - If no results are returned, say so explicitly and suggest broadening the query.
 - When providing citations, include document path and chunk offsets from Recall output.
 - Do not invent fields or query functions; keep to the RQL catalog.
@@ -133,20 +161,19 @@ SELECT doc.id, doc.path;
 - In `--json` outputs, `query.limit` and `query.offset` report the effective values
   after defaults (RQL `LIMIT`/`OFFSET`, `--k`, or context search limits).
 
-## Error Handling
+### Error Handling
 - If RQL fails to parse, simplify the query and retry.
 - If semantic search is unavailable, fall back to lexical search and exact filters.
 - If lexical search fails due to FTS5 syntax, Recall sanitizes the query; consider
   removing punctuation-heavy tokens if results are unexpected.
 
-## Inlined Reference Documents
-These documents are embedded here to keep AGENTS self-contained. References to
+## Reference Docs (Inlined)
+These documents are inlined to keep AGENTS self-contained. References to
 `DEVELOPMENT_RULES.md`, `HANDBOOK.md`, or `WORKFLOWS.md` within the inlined text
 refer to the sections below (the source files were removed).
 
-### DEVELOPMENT_RULES.md
+### Recall Development Rules (DEVELOPMENT_RULES.md)
 
-#### Recall Development Rules
 
 Purpose: keep Recall consistent with the design goals and agent-first workflow.
 
@@ -219,9 +246,8 @@ Purpose: keep Recall consistent with the design goals and agent-first workflow.
 - **MUST** follow `WORKFLOWS.md` → "Lean Workflow (Default)" by default,
   unless the user explicitly opts out.
 
-### HANDBOOK.md
+### Recall Engineering Handbook (HANDBOOK.md)
 
-#### Recall Engineering Handbook
 
 Purpose: define how we iterate on Recall, validate changes, and keep the project consistent.
 For the consolidated end-to-end workflow (including git steps), see
@@ -264,9 +290,8 @@ Use this checklist for standards and verification; document deviations.
 - Record migration steps for storage format changes.
 - Keep RQL backward compatible whenever possible.
 
-### WORKFLOWS.md
+### Recall Workflows (WORKFLOWS.md)
 
-#### Recall Workflows
 
 Purpose: minimal default workflow for developing Recall while keeping docs, tests,
 and history consistent. This is the canonical sequence referenced by
@@ -319,9 +344,8 @@ For iterative updates, re-run `recall add` with `--mtime-only`.
 If you need persistence, initialize a store in the repo root and ignore
 `recall.db` in `.gitignore`.
 
-### ROADMAP.md
+### Recall Roadmap (ROADMAP.md)
 
-#### Recall Roadmap
 
 Date: 2026-02-02
 Status: Planning v1.0; milestone issues created and ready to start.
@@ -419,9 +443,8 @@ Target window: 2026-03-15 to 2026-04-30.
 - Move the v1.0 plan issue to done when confirmed.
 - Start Milestone 6 work and move its issue to active.
 
-### docs/COMPATIBILITY.md
+### Recall v1.0 Compatibility and Freeze (docs/COMPATIBILITY.md)
 
-#### Recall v1.0 Compatibility and Freeze
 
 Date: 2026-02-02
 Status: Draft (Milestone 6)
@@ -468,9 +491,8 @@ Unsupported (known incompatible).
   are not bundled.
 - Cross-platform path normalization is OS-native; path separators differ.
 
-### docs/RELEASE.md
+### Recall Release Checklist & Versioning Policy (docs/RELEASE.md)
 
-#### Recall Release Checklist & Versioning Policy
 
 ##### Versioning Policy
 - Use semantic versioning (MAJOR.MINOR.PATCH).
@@ -523,9 +545,8 @@ Severity definitions:
 - [ ] Update `ROADMAP.md` milestones and issue status.
 - [ ] Tag the release and publish notes.
 
-### docs/benchmarks/README.md
+### Recall Benchmarks (docs/benchmarks/README.md)
 
-#### Recall Benchmarks
 
 Date: 2026-02-02
 Status: Draft (Milestone 7)
@@ -590,9 +611,8 @@ cargo test migrates_unversioned_store
 
 This confirms migrations to schema version 1 for all supported prior stores.
 
-### DESIGN.md
+### Recall Design Doc (DESIGN.md)
 
-#### Recall Design Doc
 
 Date: 2026-02-02
 Status: Draft (principles-first)
@@ -752,9 +772,8 @@ Context entries include:
 - Additional parsers (PDF deferred).
 - Background daemon/service mode.
 
-### docs/_templates/issue.md
+### ISSUE-YYYY-MM-DD-<slug> (docs/_templates/issue.md)
 
-#### ISSUE-YYYY-MM-DD-<slug>
 
 Status: open | active | done
 Milestone:
@@ -771,9 +790,8 @@ Links:
 - docs/history/decisions/ADR-YYYY-MM-DD-<slug>.md
 - docs/progress/YYYY/YYYY-MM-DD.md
 
-### docs/README.md
+### Recall Tracking Docs (docs/README.md)
 
-#### Recall Tracking Docs
 
 Purpose: track issue, progress, and history context for Recall using simple
 Markdown files and path-based status.
@@ -801,9 +819,8 @@ Markdown files and path-based status.
 ##### Templates
 Copy from docs/_templates/ and adjust dates, slugs, and references.
 
-### docs/issues/done/ISSUE-2026-02-02-v1-0-m6-interface-freeze-compatibility.md
+### ISSUE-2026-02-02-v1-0-m6-interface-freeze-compatibility (docs/issues/done/ISSUE-2026-02-02-v1-0-m6-interface-freeze-compatibility.md)
 
-#### ISSUE-2026-02-02-v1-0-m6-interface-freeze-compatibility
 
 Status: done
 Milestone: v1.0 Milestone 6 — Interface Freeze + Compatibility
@@ -840,9 +857,8 @@ Links:
 - docs/PRD-v1.0.md
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/done/ISSUE-2026-02-02-rql-pipeline-clause-order.md
+### ISSUE-2026-02-02-rql-pipeline-clause-order (docs/issues/done/ISSUE-2026-02-02-rql-pipeline-clause-order.md)
 
-#### ISSUE-2026-02-02-rql-pipeline-clause-order
 
 Status: done
 Milestone: v1.0 M6 — Interface Freeze + Compatibility
@@ -876,9 +892,8 @@ Links:
 - docs/history/decisions/ADR-2026-02-02-rql-pipeline-clause-order.md
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/done/ISSUE-2026-02-02-sqlite-sql-builder-refactor.md
+### ISSUE-2026-02-02-sqlite-sql-builder-refactor (docs/issues/done/ISSUE-2026-02-02-sqlite-sql-builder-refactor.md)
 
-#### ISSUE-2026-02-02-sqlite-sql-builder-refactor
 
 Status: done
 Milestone: v1.0 M7 — Quality + Performance Baselines
@@ -909,9 +924,8 @@ Notes:
 Links:
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/done/ISSUE-2026-02-02-v1-0-m7-quality-performance-baselines.md
+### ISSUE-2026-02-02-v1-0-m7-quality-performance-baselines (docs/issues/done/ISSUE-2026-02-02-v1-0-m7-quality-performance-baselines.md)
 
-#### ISSUE-2026-02-02-v1-0-m7-quality-performance-baselines
 
 Status: done
 Milestone: v1.0 Milestone 7 — Quality + Performance Baselines
@@ -950,9 +964,8 @@ Links:
 - docs/PRD-v1.0.md
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/done/ISSUE-2026-02-02-readme-doc-fixes.md
+### ISSUE-2026-02-02-readme-doc-fixes (docs/issues/done/ISSUE-2026-02-02-readme-doc-fixes.md)
 
-#### ISSUE-2026-02-02-readme-doc-fixes
 
 Status: done
 Milestone: M8
@@ -988,9 +1001,8 @@ Notes:
 Links:
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/done/ISSUE-2026-02-02-release-packaging-docs.md
+### ISSUE-2026-02-02-release-packaging-docs (docs/issues/done/ISSUE-2026-02-02-release-packaging-docs.md)
 
-#### ISSUE-2026-02-02-release-packaging-docs
 
 Status: done
 Milestone: M8
@@ -1025,9 +1037,8 @@ Notes:
 Links:
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/active/ISSUE-2026-02-02-v1-0-m8-release-readiness.md
+### ISSUE-2026-02-02-v1-0-m8-release-readiness (docs/issues/active/ISSUE-2026-02-02-v1-0-m8-release-readiness.md)
 
-#### ISSUE-2026-02-02-v1-0-m8-release-readiness
 
 Status: active
 Milestone: v1.0 Milestone 8 — Release Readiness
@@ -1067,9 +1078,8 @@ Links:
 - docs/RELEASE.md
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/done/ISSUE-2026-02-02-backlog-milestone-alignment.md
+### ISSUE-2026-02-02-backlog-milestone-alignment (docs/issues/done/ISSUE-2026-02-02-backlog-milestone-alignment.md)
 
-#### ISSUE-2026-02-02-backlog-milestone-alignment
 
 Status: done
 Milestone: Milestone 0 — Workflow Hygiene
@@ -1102,9 +1112,8 @@ Notes:
 Links:
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/done/ISSUE-2026-02-02-docs-tidyup.md
+### ISSUE-2026-02-02-docs-tidyup (docs/issues/done/ISSUE-2026-02-02-docs-tidyup.md)
 
-#### ISSUE-2026-02-02-docs-tidyup
 
 Status: done
 Milestone: Maintenance
@@ -1129,9 +1138,8 @@ Notes:
 Links:
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/done/ISSUE-2026-02-02-core-principles-canonical-glossary.md
+### ISSUE-2026-02-02-core-principles-canonical-glossary (docs/issues/done/ISSUE-2026-02-02-core-principles-canonical-glossary.md)
 
-#### ISSUE-2026-02-02-core-principles-canonical-glossary
 
 Status: done
 Milestone: Milestone 1 — Determinism + Explainability
@@ -1157,9 +1165,8 @@ Links:
 - docs/history/decisions/ADR-2026-02-02-core-principles-canonical-glossary.md
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/done/ISSUE-2026-02-01-snapshot-flag-search-query-context.md
+### ISSUE-2026-02-01-snapshot-flag-search-query-context (docs/issues/done/ISSUE-2026-02-01-snapshot-flag-search-query-context.md)
 
-#### ISSUE-2026-02-01-snapshot-flag-search-query-context
 
 Status: done
 Milestone: Milestone 1 — Determinism + Explainability
@@ -1187,9 +1194,8 @@ Links:
 - docs/history/decisions/ADR-2026-02-01-snapshot-flag-search-query-context.md
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/done/ISSUE-2026-02-01-explain-search-mode-resolved-config.md
+### ISSUE-2026-02-01-explain-search-mode-resolved-config (docs/issues/done/ISSUE-2026-02-01-explain-search-mode-resolved-config.md)
 
-#### ISSUE-2026-02-01-explain-search-mode-resolved-config
 
 Status: done
 Milestone: Milestone 1 — Determinism + Explainability
@@ -1224,9 +1230,8 @@ Links:
 - docs/history/decisions/ADR-2026-02-01-explain-search-mode-resolved-config.md
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/done/ISSUE-2026-02-02-cli-flag-hygiene-context-explain.md
+### ISSUE-2026-02-02-cli-flag-hygiene-context-explain (docs/issues/done/ISSUE-2026-02-02-cli-flag-hygiene-context-explain.md)
 
-#### ISSUE-2026-02-02-cli-flag-hygiene-context-explain
 
 Status: done
 Milestone: Milestone 1 — Determinism + Explainability
@@ -1253,9 +1258,8 @@ Links:
 - docs/history/decisions/ADR-2026-02-02-cli-flag-hygiene-context-explain.md
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/done/ISSUE-2026-02-01-schema-versioning-migrations-ann-fts.md
+### ISSUE-2026-02-01-schema-versioning-migrations-ann-fts (docs/issues/done/ISSUE-2026-02-01-schema-versioning-migrations-ann-fts.md)
 
-#### ISSUE-2026-02-01-schema-versioning-migrations-ann-fts
 
 Status: done
 Milestone: Milestone 2 — Local-first Reliability
@@ -1280,9 +1284,8 @@ Links:
 - docs/history/decisions/ADR-2026-02-01-schema-versioning-migrations-ann-fts.md
 - docs/progress/2026/2026-02-01.md
 
-### docs/issues/done/ISSUE-2026-02-01-doctor-fix-safer-compact.md
+### ISSUE-2026-02-01-doctor-fix-safer-compact (docs/issues/done/ISSUE-2026-02-01-doctor-fix-safer-compact.md)
 
-#### ISSUE-2026-02-01-doctor-fix-safer-compact
 
 Status: done
 Milestone: Milestone 2 — Local-first Reliability
@@ -1310,9 +1313,8 @@ Links:
 - docs/history/decisions/ADR-2026-02-01-doctor-fix-safer-compact.md
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/done/ISSUE-2026-02-02-cli-store-mode-safety.md
+### ISSUE-2026-02-02-cli-store-mode-safety (docs/issues/done/ISSUE-2026-02-02-cli-store-mode-safety.md)
 
-#### ISSUE-2026-02-02-cli-store-mode-safety
 
 Status: done
 Milestone: Milestone 2 — Local-first Reliability
@@ -1339,9 +1341,8 @@ Links:
 - docs/history/decisions/ADR-2026-02-02-cli-store-mode-safety.md
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/done/ISSUE-2026-02-01-release-checklist-versioning-policy.md
+### ISSUE-2026-02-01-release-checklist-versioning-policy (docs/issues/done/ISSUE-2026-02-01-release-checklist-versioning-policy.md)
 
-#### ISSUE-2026-02-01-release-checklist-versioning-policy
 
 Status: done
 Milestone: Milestone 2 — Local-first Reliability
@@ -1363,9 +1364,8 @@ Links:
 - docs/history/decisions/ADR-2026-02-01-release-checklist-versioning-policy.md
 - docs/progress/2026/2026-02-01.md
 
-### docs/issues/done/ISSUE-2026-02-01-structure-aware-chunking.md
+### ISSUE-2026-02-01-structure-aware-chunking (docs/issues/done/ISSUE-2026-02-01-structure-aware-chunking.md)
 
-#### ISSUE-2026-02-01-structure-aware-chunking
 
 Status: done
 Milestone: Milestone 3 — Context as Managed Resource
@@ -1392,9 +1392,8 @@ Links:
 - docs/history/decisions/ADR-2026-02-01-structure-aware-chunking.md
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/done/ISSUE-2026-02-01-json-stats-corpus-memory.md
+### ISSUE-2026-02-01-json-stats-corpus-memory (docs/issues/done/ISSUE-2026-02-01-json-stats-corpus-memory.md)
 
-#### ISSUE-2026-02-01-json-stats-corpus-memory
 
 Status: done
 Milestone: Milestone 3 — Context as Managed Resource
@@ -1416,9 +1415,8 @@ Links:
 - docs/history/decisions/ADR-2026-02-01-json-stats-corpus-memory.md
 - docs/progress/2026/2026-02-01.md
 
-### docs/issues/done/ISSUE-2026-02-01-jsonl-output-large-results.md
+### ISSUE-2026-02-01-jsonl-output-large-results (docs/issues/done/ISSUE-2026-02-01-jsonl-output-large-results.md)
 
-#### ISSUE-2026-02-01-jsonl-output-large-results
 
 Status: done
 Milestone: Milestone 3 — Context as Managed Resource
@@ -1440,9 +1438,8 @@ Links:
 - docs/history/decisions/ADR-2026-02-01-jsonl-output-large-results.md
 - docs/progress/2026/2026-02-01.md
 
-### docs/issues/done/ISSUE-2026-02-01-rql-stdin-filter-file.md
+### ISSUE-2026-02-01-rql-stdin-filter-file (docs/issues/done/ISSUE-2026-02-01-rql-stdin-filter-file.md)
 
-#### ISSUE-2026-02-01-rql-stdin-filter-file
 
 Status: done
 Milestone: Milestone 4 — AI-native Interface
@@ -1470,9 +1467,8 @@ Links:
 - docs/history/decisions/ADR-2026-02-01-rql-stdin-filter-file.md
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/done/ISSUE-2026-02-01-shell-completions-manpage-install.md
+### ISSUE-2026-02-01-shell-completions-manpage-install (docs/issues/done/ISSUE-2026-02-01-shell-completions-manpage-install.md)
 
-#### ISSUE-2026-02-01-shell-completions-manpage-install
 
 Status: done
 Milestone: Milestone 4 — AI-native Interface
@@ -1494,9 +1490,8 @@ Links:
 - docs/history/decisions/ADR-2026-02-01-shell-completions-manpage-install.md
 - docs/progress/2026/2026-02-01.md
 
-### docs/issues/done/ISSUE-2026-02-02-markdown-metadata-extraction.md
+### ISSUE-2026-02-02-markdown-metadata-extraction (docs/issues/done/ISSUE-2026-02-02-markdown-metadata-extraction.md)
 
-#### ISSUE-2026-02-02-markdown-metadata-extraction
 
 Status: done
 Milestone: Milestone 4 — AI-native Interface
@@ -1531,9 +1526,8 @@ Notes:
 Links:
 - docs/progress/2026/2026-02-02.md
 
-### docs/issues/done/ISSUE-2026-02-01-ann-hnsw-backend.md
+### ISSUE-2026-02-01-ann-hnsw-backend (docs/issues/done/ISSUE-2026-02-01-ann-hnsw-backend.md)
 
-#### ISSUE-2026-02-01-ann-hnsw-backend
 
 Status: done
 Milestone: Milestone 5 — Hybrid Retrieval Performance (Optional)
@@ -1560,9 +1554,8 @@ Links:
 - docs/history/decisions/ADR-2026-02-01-ann-hnsw-backend.md
 - docs/progress/2026/2026-02-02.md
 
-### docs/history/changes/CHANGE-2026-02-02-v1-0-release.md
+### CHANGE-2026-02-02-v1-0-release (docs/history/changes/CHANGE-2026-02-02-v1-0-release.md)
 
-#### CHANGE-2026-02-02-v1-0-release
 
 Status: draft (release pending)
 
@@ -1591,9 +1584,8 @@ References:
 - ISSUE-2026-02-02-v1-0-m7-quality-performance-baselines
 - ISSUE-2026-02-02-v1-0-m8-release-readiness
 
-### docs/benchmarks/baseline-2026-02-02.md
+### Benchmark Baseline (2026-02-02) (docs/benchmarks/baseline-2026-02-02.md)
 
-#### Benchmark Baseline (2026-02-02)
 
 ##### Environment
 - OS: macOS 26.2 (Build 25C56)
@@ -1620,9 +1612,8 @@ References:
 - Dataset generated at /tmp/recall-bench with seed 42.
 - Debug build baseline; capture a release baseline before v1.0 RC.
 
-### docs/PRD-v1.0.md
+### PRD: Recall v1.0 (docs/PRD-v1.0.md)
 
-#### PRD: Recall v1.0
 
 ##### Context
 Recall is post‑MVP with the backlog flush complete. The next step is a v1.0
@@ -1682,9 +1673,8 @@ upgrade guarantees, with a clear target window and release gates.
 - [ ] T6: Execute release checklist and tag v1.0 (Acceptance Criteria:
   checklist complete and tag recorded)
 
-### docs/progress/2026/2026-02-02.md
+### 2026-02-02 (docs/progress/2026/2026-02-02.md)
 
-#### 2026-02-02
 
 Focus:
 - Enforce default git workflow requirements in project rules.
@@ -1796,9 +1786,8 @@ References:
 - CHANGE-2026-02-02-rql-pipeline-clause-order
 - Commits: 81ec30a, 4914894, e1b0f6d, b2c332a
 
-### docs/history/decisions/ADR-2026-02-02-rql-pipeline-clause-order.md
+### ADR-2026-02-02-rql-pipeline-clause-order (docs/history/decisions/ADR-2026-02-02-rql-pipeline-clause-order.md)
 
-#### ADR-2026-02-02-rql-pipeline-clause-order
 
 Status: accepted
 Context:
@@ -1817,9 +1806,8 @@ Alternatives:
 Links:
 - ISSUE-2026-02-02-rql-pipeline-clause-order
 
-### todo.md
+### Todo (todo.md)
 
-#### Todo
 
 Last updated: 2026-02-02
 
@@ -1837,9 +1825,8 @@ Last updated: 2026-02-02
 - [x] README: make snapshot token workflow reproducible (show `stats.snapshot` capture and `--snapshot` usage).
 - [x] README: clarify single-file store claim vs config/lock file presence.
 
-### README.md
+### Recall (README.md)
 
-#### Recall
 
 Recall is a CLI-first, hybrid search database for AI agents working with large context. It is designed as “SQLite for document data” with deterministic retrieval, exact filtering, and semantic search.
 
@@ -2047,9 +2034,8 @@ release notes draft lives in `docs/history/changes/CHANGE-2026-02-02-v1-0-releas
 ##### License
 Apache-2.0. See `LICENSE`.
 
-### docs/progress/2026/2026-02-01.md
+### 2026-02-01 (docs/progress/2026/2026-02-01.md)
 
-#### 2026-02-01
 
 Focus:
 - ISSUE-2026-02-01-query-limit-offset-json: emit real query.limit/offset in JSON output.
@@ -2087,9 +2073,8 @@ References:
 - docs/issues/done/ISSUE-2026-02-01-query-limit-offset-json.md
 - Commit: <sha>
 
-### docs/issues/done/ISSUE-2026-02-01-query-limit-offset-json.md
+### ISSUE-2026-02-01-query-limit-offset-json (docs/issues/done/ISSUE-2026-02-01-query-limit-offset-json.md)
 
-#### ISSUE-2026-02-01-query-limit-offset-json
 
 Status: done
 Milestone: M1
