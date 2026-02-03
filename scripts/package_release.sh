@@ -30,7 +30,7 @@ rm -rf "$STAGE"
 mkdir -p "$STAGE/bin"
 
 cp "$BIN" "$STAGE/bin/"
-cp README.md LICENSE DESIGN.md WORKFLOWS.md ROADMAP.md AGENTS.md "$STAGE/"
+cp README.md LICENSE DESIGN.md ROADMAP.md AGENTS.md "$STAGE/"
 cp x "$STAGE/"
 cp -R docs scripts "$STAGE/"
 

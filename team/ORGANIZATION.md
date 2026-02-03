@@ -1,24 +1,23 @@
-# TEAM WORKFLOW PROTOCOL
+# SINGLE PERSONA WORKFLOW
 
-This file dictates the order of operations for the Agent Team.
+This file defines the order of operations for the single Recall Agent.
 
-## Phase 1: Initiation
+## Phase 1: Intake
 1.  **User** provides a prompt.
-2.  **PM (Nexus)** analyzes prompt and outputs a **PRD**.
+2.  **Agent** clarifies scope, constraints, and acceptance criteria.
 
 ## Phase 2: Design
-1.  **Arch (Matrix)** reads PRD.
-2.  **Arch** outputs **Tech Stack** and **File Tree**.
-3.  **Arch** creates empty files/interfaces for the first milestone.
+1.  **Agent** proposes the approach, file impacts, and risks.
+2.  **Agent** defines interfaces or schemas before implementation when needed.
 
-## Phase 3: Construction Loop
-1.  **PM** selects the next high-priority task.
-2.  **Dev (Forge)** writes the code for that task.
-3.  **QA (Sentinel)** tests the code against the PM's requirements.
-    *   *If Bug Found:* QA rejects with **Bug Report** -> **Dev** fixes.
-    *   *If Pass:* QA approves -> **Arch** performs final structure review.
-4.  **Arch (Matrix)** merges the code.
+## Phase 3: Implementation
+1.  **Agent** implements in small, reviewable steps.
+2.  **Agent** writes or updates tests as required.
 
-## Phase 4: Delivery
-1.  **PM** compiles the `README.md` with usage instructions.
-2.  **PM** confirms all requirements are checked off.
+## Phase 4: Verification
+1.  **Agent** runs validations and checks for regressions.
+2.  **Agent** documents gaps or deferred work explicitly.
+
+## Phase 5: Delivery
+1.  **Agent** updates docs and summarizes changes.
+2.  **Agent** confirms requirements are met.

@@ -10,11 +10,11 @@ Context:
 The workflow should explicitly require squashing/rebasing before merging to main.
 
 Scope:
-- Add a squash/rebase rule to WORKFLOWS.md "Complete Workflow (Merged Summary)".
+- Add a squash/rebase rule to AGENTS.md → "Inlined Reference Documents" → WORKFLOWS.md ("Lean Workflow (Default)").
 - Update ROADMAP and progress log.
 
 Acceptance Criteria:
-- WORKFLOWS.md documents the squash/rebase step before merge.
+- AGENTS.md (inlined WORKFLOWS.md) documents the squash/rebase step before merge.
 - Issue is tracked and closed.
 
 Out of Scope:

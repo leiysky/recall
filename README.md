@@ -175,7 +175,7 @@ recall import recall.jsonl --json
 ```
 
 ## Development
-Note: the files referenced below (including `./x`, `WORKFLOWS.md`, `ROADMAP.md`, and `docs/`) live in the source checkout. Release archives built via `scripts/package_release.sh` include them; binary-only installs may not.
+Note: the files referenced below (including `./x`, `AGENTS.md`, `ROADMAP.md`, and `docs/`) live in the source checkout. Release archives built via `scripts/package_release.sh` include them; binary-only installs may not.
 
 Use the `./x` helper for consistent workflows:
 ```
@@ -189,8 +189,8 @@ See `docs/benchmarks/README.md` for the benchmark dataset, baseline numbers,
 and regression thresholds.
 
 ## Workflows
-See `WORKFLOWS.md` for temporary (volatile) workflows and end-to-end examples
-of using Recall to develop Recall.
+See `AGENTS.md` → "Inlined Reference Documents" → `WORKFLOWS.md` for temporary
+(volatile) workflows and end-to-end examples of using Recall to develop Recall.
 
 ## Roadmap
 See `ROADMAP.md`.
