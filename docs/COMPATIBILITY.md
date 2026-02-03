@@ -1,6 +1,6 @@
 # Recall v1.0 Compatibility and Freeze
 
-Date: 2026-02-02
+Date: 2026-02-03
 Status: Draft (Milestone 6)
 
 ## Interface Freeze (v1.0)
@@ -25,6 +25,12 @@ Recommended upgrade flow:
 2) Run `recall doctor --json` to validate the store.
 3) Open the store with the new Recall binary; migrations run automatically.
 4) Run `recall stats --json` to confirm the new schema version.
+
+## Breaking Changes (2026-02-03)
+- Per-directory `recall.toml` is no longer supported. Move settings to the global config at
+  `<config_dir>/recall/recall.toml`.
+- Store discovery now walks up for `recall.db` (or the configured `store_path`).
+- Lock files moved to the OS temp directory and are cleaned up on writer exit.
 
 ## Compatibility Matrix
 Status legend: Validated (tested locally), Targeted (expected to work),

@@ -1,6 +1,6 @@
 # Recall Design Doc
 
-Date: 2026-02-02
+Date: 2026-02-03
 Status: Draft (principles-first)
 
 ## Product Summary
@@ -107,7 +107,7 @@ Notes:
 
 ## Storage and Local-first
 - Single-file store `recall.db` backed by SQLite.
-- Single-writer, multi-reader semantics with a sibling lock file.
+- Single-writer, multi-reader semantics with a temporary lock file in the OS temp dir.
 - No network calls unless explicitly configured by the user.
 - On-disk schema versions are stored in a `meta` table and migrated on open.
 
@@ -145,7 +145,13 @@ Result entries include:
 Context entries include:
 - `text`, `budget_tokens`, `used_tokens`, `chunks[{path, hash, mtime, offset, tokens, text}]`.
 
-## Configuration (recall.toml)
+## Error Contract
+- With `--json`, failures return `ok=false` and an `error{code,message}` object.
+- Non-JSON mode returns a non-zero exit status and prints a human-readable error.
+
+## Configuration (Global recall.toml)
+Recall uses an optional global config file in the OS config directory:
+`<config_dir>/recall/recall.toml`.
 - `store_path`
 - `chunk_tokens`, `overlap_tokens`
 - `embedding`, `embedding_dim`
@@ -153,6 +159,15 @@ Context entries include:
 - `ann_bits`, `ann_seed`
 - `bm25_weight`, `vector_weight`
 - `max_limit`
+
+## Defaults and Precedence
+- Global config (if present) overrides built-in defaults.
+- No per-directory config files are supported.
+
+## Store Discovery
+- Commands walk up from the current directory to locate `config.store_path`
+  (default `recall.db`).
+- If `store_path` is absolute, it is used directly.
 
 ## Future (Explicitly Out of MVP Scope)
 - Additional parsers (PDF deferred).

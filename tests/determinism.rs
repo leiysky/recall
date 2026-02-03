@@ -24,6 +24,14 @@ fn recall_cmd() -> Command {
     Command::new(assert_cmd::cargo::cargo_bin!("recall"))
 }
 
+fn recall_cmd_with_env(config_root: &Path) -> Command {
+    let mut cmd = recall_cmd();
+    cmd.env("XDG_CONFIG_HOME", config_root);
+    cmd.env("HOME", config_root);
+    cmd.env("APPDATA", config_root);
+    cmd
+}
+
 fn normalize_json(mut value: Value) -> Value {
     if let Some(stats) = value.get_mut("stats")
         && let Some(obj) = stats.as_object_mut()
@@ -42,10 +50,9 @@ fn normalize_json(mut value: Value) -> Value {
         }
         if let Some(corpus) = obj.get_mut("corpus")
             && let Some(corpus_obj) = corpus.as_object_mut()
+            && corpus_obj.contains_key("bytes")
         {
-            if corpus_obj.contains_key("bytes") {
-                corpus_obj.insert("bytes".to_string(), json!(0));
-            }
+            corpus_obj.insert("bytes".to_string(), json!(0));
         }
     }
     strip_mtime(&mut value);
@@ -85,10 +92,10 @@ fn run_json(cmd: &mut Command, cwd: &Path) -> Value {
     serde_json::from_str(&stdout).expect("parse json")
 }
 
-fn assert_repeatable(args: &[&str], runs: usize, cwd: &Path) {
+fn assert_repeatable(args: &[&str], runs: usize, cwd: &Path, config_root: &Path) {
     let mut baseline: Option<Value> = None;
     for _ in 0..runs {
-        let mut cmd = recall_cmd();
+        let mut cmd = recall_cmd_with_env(config_root);
         cmd.args(args);
         let json = normalize_json(run_json(&mut cmd, cwd));
         if let Some(ref expected) = baseline {
@@ -101,6 +108,8 @@ fn assert_repeatable(args: &[&str], runs: usize, cwd: &Path) {
 
 #[test]
 fn deterministic_outputs() {
+    let config_temp = TempDir::new().expect("config tempdir");
+    let config_root = config_temp.path();
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();
     fs::create_dir_all(root.join("docs")).expect("docs dir");
@@ -108,11 +117,11 @@ fn deterministic_outputs() {
     fs::write(root.join("docs/b.txt"), "beta gamma delta\n").expect("write file");
     fs::write(root.join("docs/c.txt"), "gamma delta epsilon\n").expect("write file");
 
-    let mut cmd = recall_cmd();
+    let mut cmd = recall_cmd_with_env(config_root);
     cmd.args(["init", "."]);
     assert!(cmd.current_dir(root).output().unwrap().status.success());
 
-    let mut cmd = recall_cmd();
+    let mut cmd = recall_cmd_with_env(config_root);
     cmd.args(["add", "docs", "--glob", "**/*.txt", "--json"]);
     assert!(cmd.current_dir(root).output().unwrap().status.success());
 
@@ -130,6 +139,7 @@ fn deterministic_outputs() {
         ],
         20,
         root,
+        config_root,
     );
 
     assert_repeatable(
@@ -143,6 +153,7 @@ fn deterministic_outputs() {
         ],
         20,
         root,
+        config_root,
     );
 
     assert_repeatable(
@@ -157,5 +168,6 @@ fn deterministic_outputs() {
         ],
         20,
         root,
+        config_root,
     );
 }

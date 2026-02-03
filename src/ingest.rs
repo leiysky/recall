@@ -386,23 +386,23 @@ fn code_blocks(text: &str) -> Vec<String> {
 fn extract_metadata(text: &str) -> Result<Option<String>> {
     let mut map = BTreeMap::new();
     let mut lines = text.lines();
-    if let Some(first) = lines.next() {
-        if first.trim() == "---" {
-            for line in lines.by_ref() {
-                let trimmed = line.trim();
-                if trimmed == "---" || trimmed == "..." {
-                    break;
-                }
-                if let Some((k, v)) = line.split_once(':') {
-                    if let Some(key) = normalize_meta_key(k) {
-                        map.insert(key, v.trim().to_string());
-                    }
-                }
+    if let Some(first) = lines.next()
+        && first.trim() == "---"
+    {
+        for line in lines.by_ref() {
+            let trimmed = line.trim();
+            if trimmed == "---" || trimmed == "..." {
+                break;
             }
-            if !map.is_empty() {
-                let json = serde_json::to_string(&map).context("serialize metadata")?;
-                return Ok(Some(json));
+            if let Some((k, v)) = line.split_once(':')
+                && let Some(key) = normalize_meta_key(k)
+            {
+                map.insert(key, v.trim().to_string());
             }
+        }
+        if !map.is_empty() {
+            let json = serde_json::to_string(&map).context("serialize metadata")?;
+            return Ok(Some(json));
         }
     }
 
@@ -441,10 +441,8 @@ fn normalize_meta_key(raw: &str) -> Option<String> {
     for ch in raw.trim().chars() {
         if ch.is_ascii_alphanumeric() {
             out.push(ch.to_ascii_lowercase());
-        } else if ch == ' ' || ch == '_' || ch == '-' {
-            if !out.ends_with('_') {
-                out.push('_');
-            }
+        } else if (ch == ' ' || ch == '_' || ch == '-') && !out.ends_with('_') {
+            out.push('_');
         }
     }
     let cleaned = out.trim_matches('_').to_string();

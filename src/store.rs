@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
+use std::fs;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::path::Path;
@@ -28,7 +29,8 @@ use rusqlite::Connection;
 use rusqlite::OpenFlags;
 use rusqlite::OptionalExtension;
 use rusqlite::params;
-use serde_json;
+use sha2::Digest;
+use sha2::Sha256;
 
 use crate::ann;
 use crate::config::Config;
@@ -39,7 +41,23 @@ use crate::output::CorpusStats;
 pub struct Store {
     pub conn: Connection,
     pub path: PathBuf,
-    _lock: Option<File>,
+    lock: Option<StoreLock>,
+}
+
+struct StoreLock {
+    _file: File,
+    path: PathBuf,
+    mode: StoreMode,
+}
+
+impl StoreLock {
+    fn new(file: File, path: PathBuf, mode: StoreMode) -> Self {
+        Self {
+            _file: file,
+            path,
+            mode,
+        }
+    }
 }
 
 const SCHEMA_VERSION: i64 = 1;
@@ -115,7 +133,7 @@ impl Store {
             return Ok(Self {
                 conn,
                 path: path.to_path_buf(),
-                _lock: Some(lock),
+                lock: Some(lock),
             });
         }
 
@@ -139,7 +157,7 @@ impl Store {
         Ok(Self {
             conn,
             path: path.to_path_buf(),
-            _lock: Some(lock),
+            lock: Some(lock),
         })
     }
 
@@ -166,12 +184,24 @@ impl Store {
         Ok(())
     }
 
-    fn acquire_lock(path: &Path, mode: StoreMode) -> Result<File> {
-        let lock_path = path.with_extension("lock");
+    fn lock_path_for(path: &Path) -> Result<PathBuf> {
+        let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        let mut hasher = Sha256::new();
+        hasher.update(canonical.to_string_lossy().as_bytes());
+        let hash = hex::encode(hasher.finalize());
+        let mut dir = std::env::temp_dir();
+        dir.push("recall");
+        fs::create_dir_all(&dir).with_context(|| format!("create lock dir {}", dir.display()))?;
+        Ok(dir.join(format!("recall-{hash}.lock")))
+    }
+
+    fn acquire_lock(path: &Path, mode: StoreMode) -> Result<StoreLock> {
+        let lock_path = Self::lock_path_for(path)?;
         let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
+            .truncate(false)
             .open(&lock_path)
             .with_context(|| format!("open lock file {}", lock_path.display()))?;
         let deadline = Instant::now() + Duration::from_millis(5000);
@@ -181,7 +211,7 @@ impl Store {
                 StoreMode::ReadWrite => file.try_lock_exclusive().map_err(|err| err.to_string()),
             };
             match locked {
-                Ok(()) => return Ok(file),
+                Ok(()) => return Ok(StoreLock::new(file, lock_path, mode)),
                 Err(_) if Instant::now() >= deadline => {
                     let mode_label = match mode {
                         StoreMode::ReadOnly => "read",
@@ -526,6 +556,19 @@ impl Store {
             )?;
         }
         Ok(updated)
+    }
+}
+
+impl Drop for Store {
+    fn drop(&mut self) {
+        if let Some(lock) = self.lock.take() {
+            let path = lock.path.clone();
+            let mode = lock.mode;
+            drop(lock);
+            if matches!(mode, StoreMode::ReadWrite) {
+                let _ = fs::remove_file(path);
+            }
+        }
     }
 }
 
