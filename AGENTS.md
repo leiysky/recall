@@ -523,7 +523,8 @@ Context entries include:
 
 ##### Configuration (Global recall.toml)
 Recall uses an optional global config file in the OS config directory:
-`<config_dir>/recall/recall.toml`.
+`<config_dir>/recall/recall.toml`. On Unix (including macOS), this follows XDG
+(`$XDG_CONFIG_HOME` or `$HOME/.config`).
 - `store_path`
 - `chunk_tokens`, `overlap_tokens`
 - `embedding`, `embedding_dim`

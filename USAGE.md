@@ -137,8 +137,9 @@ include `error.code` and `error.message`. Use `--jsonl` for streaming large
 result sets.
 
 ## Configuration (Optional)
-Recall reads a single optional config file from the OS config directory. The
-path is printed by `recall init`. Example:
+Recall reads a single optional config file from the OS config directory. On
+Unix (including macOS), the directory follows XDG (`$XDG_CONFIG_HOME` or
+`$HOME/.config`). The path is printed by `recall init`. Example:
 ```
 store_path = "recall.db"
 chunk_tokens = 256

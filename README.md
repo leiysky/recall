@@ -4,7 +4,7 @@ Recall is a CLI-first, hybrid search database for AI agents working with large c
 
 ## Highlights
 - CLI and RQL are the stable, top-level interfaces.
-- Single-file local data store (`recall.db`) backed by SQLite + FTS5 + sqlite-vec; optional global config in the OS config dir; lock file is temporary.
+- Single-file local data store (`recall.db`) backed by SQLite + FTS5 + sqlite-vec; optional global config in the OS config dir (XDG on Unix); lock file is temporary.
 - Hybrid retrieval: lexical (FTS5 bm25) + semantic embeddings.
 - Deterministic ordering and context assembly with token budgets and provenance.
 - JSON outputs with schema validation and golden tests.
@@ -14,7 +14,7 @@ Recall is a CLI-first, hybrid search database for AI agents working with large c
 Canonical definitions live in `DESIGN.md` under Core Principles.
 - Determinism over magic: identical inputs + store state yield identical outputs, including ordering and context assembly.
 - Hybrid retrieval with strict filters: semantic + lexical ranking is allowed, but FILTER constraints are exact and non-negotiable.
-- Local-first, zero-ops: data store is a single file (`recall.db`); optional global config in the OS config dir; temporary lock file; offline by default, no required services.
+- Local-first, zero-ops: data store is a single file (`recall.db`); optional global config in the OS config dir (XDG on Unix); temporary lock file; offline by default, no required services.
 - Context as a managed resource: hard token budgets, deterministic packing, and provenance for every chunk.
 - AI-native interface: CLI and stable RQL are the source of truth; JSON outputs are stable for tooling.
 
