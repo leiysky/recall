@@ -25,7 +25,7 @@ expression: normalize_json(search_sanitized_json)
       "bm25_weight": 0.5,
       "chunk_tokens": 256,
       "embedding": "model2vec",
-      "embedding_dim": 2,
+      "embedding_dim": 256,
       "lexical_mode": "fts5",
       "max_limit": 1000,
       "overlap_tokens": 32,
@@ -62,9 +62,9 @@ expression: normalize_json(search_sanitized_json)
         "tag": "docs"
       },
       "explain": {
-        "semantic": 0.7717069387435913
+        "semantic": 0.3068583607673645
       },
-      "score": 0.7717069387435913
+      "score": 0.3068583607673645
     }
   ],
   "schema_version": "2",

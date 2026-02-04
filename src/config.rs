@@ -39,7 +39,7 @@ impl Default for Config {
             store_path: PathBuf::from("recall.db"),
             chunk_tokens: 256,
             overlap_tokens: 32,
-            embedding_dim: 2,
+            embedding_dim: 256,
             embedding: "model2vec".to_string(),
             bm25_weight: 0.5,
             vector_weight: 0.5,

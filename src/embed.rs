@@ -27,9 +27,10 @@ use crate::config::Config;
 
 pub const EMBEDDING_HASH: &str = "hash";
 pub const EMBEDDING_MODEL2VEC: &str = "model2vec";
-const MODEL2VEC_SAFETENSORS: &[u8] = include_bytes!("../assets/model2vec-rs/model.safetensors");
-const MODEL2VEC_TOKENIZER: &[u8] = include_bytes!("../assets/model2vec-rs/tokenizer.json");
-const MODEL2VEC_CONFIG: &[u8] = include_bytes!("../assets/model2vec-rs/config.json");
+const MODEL2VEC_SAFETENSORS: &[u8] =
+    include_bytes!("../assets/potion-base-8M/model.safetensors");
+const MODEL2VEC_TOKENIZER: &[u8] = include_bytes!("../assets/potion-base-8M/tokenizer.json");
+const MODEL2VEC_CONFIG: &[u8] = include_bytes!("../assets/potion-base-8M/config.json");
 
 #[derive(Debug, Clone, Copy)]
 pub struct EmbeddingSpec {
