@@ -143,9 +143,12 @@ path is printed by `recall init`. Example:
 store_path = "recall.db"
 chunk_tokens = 256
 overlap_tokens = 32
-embedding = "hash"
+embedding = "model2vec"
 embedding_dim = 256
 bm25_weight = 0.5
 vector_weight = 0.5
 max_limit = 1000
 ```
+Notes:
+- `embedding` supports `"model2vec"` (default) or `"hash"`.
+- `embedding_dim` must match the embedded model2vec dimension (256) when using `"model2vec"`.

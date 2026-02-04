@@ -29,7 +29,7 @@ use walkdir::WalkDir;
 
 use crate::config::Config;
 use crate::embed::Embedder;
-use crate::embed::HashEmbedder;
+use crate::embed::build_embedder;
 use crate::embed::to_bytes;
 use crate::store::Store;
 
@@ -84,7 +84,7 @@ pub fn ingest_paths(
     let include_set = build_globset(opts.glob.as_deref())?;
     let ignore_set = build_ignore_set(&opts.ignore)?;
 
-    let embedder = HashEmbedder::new(config.embedding_dim);
+    let embedder = build_embedder(config)?;
 
     let mut report = IngestReport {
         docs_added: 0,
@@ -97,7 +97,7 @@ pub fn ingest_paths(
             ingest_file(
                 store,
                 config,
-                &embedder,
+                embedder.as_ref(),
                 &path,
                 &include_set,
                 &ignore_set,
@@ -110,7 +110,7 @@ pub fn ingest_paths(
                     ingest_file(
                         store,
                         config,
-                        &embedder,
+                        embedder.as_ref(),
                         entry.path(),
                         &include_set,
                         &ignore_set,
@@ -156,7 +156,7 @@ fn build_ignore_set(patterns: &[String]) -> Result<GlobSet> {
 fn ingest_file(
     store: &Store,
     config: &Config,
-    embedder: &HashEmbedder,
+    embedder: &dyn Embedder,
     path: &Path,
     include_set: &Option<GlobSet>,
     ignore_set: &GlobSet,

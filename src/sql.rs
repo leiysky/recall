@@ -49,7 +49,6 @@ pub enum SqlColumn {
     ChunkOffset,
     ChunkTokens,
     ChunkText,
-    ChunkEmbedding,
     ChunkDeleted,
     ChunkFtsRowid,
 }
@@ -71,7 +70,6 @@ impl SqlColumn {
             SqlColumn::ChunkOffset => "chunk.offset",
             SqlColumn::ChunkTokens => "chunk.tokens",
             SqlColumn::ChunkText => "chunk.text",
-            SqlColumn::ChunkEmbedding => "chunk.embedding",
             SqlColumn::ChunkDeleted => "chunk.deleted",
             SqlColumn::ChunkFtsRowid => "chunk_fts.rowid",
         }

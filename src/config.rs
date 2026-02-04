@@ -40,7 +40,7 @@ impl Default for Config {
             chunk_tokens: 256,
             overlap_tokens: 32,
             embedding_dim: 256,
-            embedding: "hash".to_string(),
+            embedding: "model2vec".to_string(),
             bm25_weight: 0.5,
             vector_weight: 0.5,
             max_limit: 1000,
@@ -153,6 +153,7 @@ pub fn read_config(path: &Path) -> Result<Config> {
     if config.overlap_tokens >= config.chunk_tokens {
         config.overlap_tokens = 0;
     }
+    config.embedding = config.embedding.trim().to_lowercase();
     Ok(config)
 }
 

@@ -36,6 +36,9 @@ use sha2::Sha256;
 use sqlite_vec::sqlite3_vec_init;
 
 use crate::config::Config;
+use crate::embed::EMBEDDING_HASH;
+use crate::embed::EmbeddingSpec;
+use crate::embed::resolve_embedding;
 use crate::output::CorpusStats;
 
 pub struct Store {
@@ -121,13 +124,15 @@ impl Store {
         if path.exists() {
             anyhow::bail!("store already exists at {}", path.display());
         }
-        let embedding_dim = config.embedding_dim.max(1);
+        let embedding = resolve_embedding(config)?;
+        let embedding_dim = embedding.dim;
         let _lock = Self::acquire_lock(path, StoreMode::ReadWrite)?;
         let conn = Self::open_connection(path, StoreMode::ReadWrite)?;
         Self::apply_pragmas(&conn, StoreMode::ReadWrite)?;
         Self::create_schema(&conn, embedding_dim)?;
         Self::set_meta(&conn, "schema_version", &SCHEMA_VERSION.to_string())?;
         Self::set_meta(&conn, "vec_version", VEC_VERSION)?;
+        Self::set_meta(&conn, "embedding", embedding.name)?;
         Self::set_meta(&conn, "embedding_dim", &embedding_dim.to_string())?;
         Self::set_meta(&conn, "fts_version", FTS_VERSION)?;
         Ok(())
@@ -146,10 +151,12 @@ impl Store {
             );
         }
 
-        let embedding_dim = config.embedding_dim.max(1);
+        let embedding = resolve_embedding(config)?;
+        let embedding_dim = embedding.dim;
         if matches!(mode, StoreMode::ReadWrite) {
             Self::create_schema(&conn, embedding_dim)?;
         }
+        Self::validate_embedding(&conn, embedding)?;
         Self::validate_embedding_dim(&conn, embedding_dim)?;
 
         Ok(Self {
@@ -282,6 +289,32 @@ impl Store {
             .optional()
             .context("read embedding_dim")?;
         Ok(value.and_then(|v| v.parse::<usize>().ok()))
+    }
+
+    fn embedding_meta(conn: &Connection) -> Result<Option<String>> {
+        let value: Option<String> = conn
+            .query_row("SELECT value FROM meta WHERE key='embedding'", [], |row| {
+                row.get(0)
+            })
+            .optional()
+            .context("read embedding")?;
+        Ok(value)
+    }
+
+    fn validate_embedding(conn: &Connection, embedding: EmbeddingSpec) -> Result<()> {
+        let stored = Self::embedding_meta(conn)?;
+        if let Some(stored) = stored {
+            if stored != embedding.name {
+                anyhow::bail!(
+                    "config embedding {} does not match store embedding {}; re-init + re-ingest required",
+                    embedding.name,
+                    stored
+                );
+            }
+        } else if embedding.name != EMBEDDING_HASH {
+            anyhow::bail!("store embedding metadata missing; re-init + re-ingest required");
+        }
+        Ok(())
     }
 
     fn validate_embedding_dim(conn: &Connection, embedding_dim: usize) -> Result<()> {

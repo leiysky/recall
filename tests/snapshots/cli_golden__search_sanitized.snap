@@ -25,7 +25,7 @@ expression: normalize_json(search_sanitized_json)
     "resolved_config": {
       "bm25_weight": 0.5,
       "chunk_tokens": 256,
-      "embedding": "hash",
+      "embedding": "model2vec",
       "embedding_dim": 256,
       "lexical_mode": "fts5",
       "max_limit": 1000,

@@ -14,7 +14,6 @@
 
 use std::fs;
 use std::path::Path;
-use std::path::PathBuf;
 
 use assert_cmd::Command;
 use jsonschema::JSONSchema;
@@ -32,15 +31,6 @@ fn recall_cmd_with_env(config_root: &Path) -> Command {
     cmd.env("HOME", config_root);
     cmd.env("APPDATA", config_root);
     cmd
-}
-
-fn global_config_path(config_root: &Path) -> PathBuf {
-    let base = if cfg!(target_os = "macos") {
-        config_root.join("Library").join("Application Support")
-    } else {
-        config_root.to_path_buf()
-    };
-    base.join("recall").join("recall.toml")
 }
 
 fn load_schema() -> JSONSchema {
