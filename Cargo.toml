@@ -19,10 +19,11 @@ hex = "0.4"
 time = { version = "0.3", features = ["formatting", "parsing"] }
 base64 = "0.22"
 fs2 = "0.4"
+model2vec-rs = "0.1.4"
+tempfile = "3.10"
 
 [dev-dependencies]
 insta = { version = "1.39", features = ["json"] }
 assert_cmd = "2.0"
 predicates = "3.1"
-tempfile = "3.10"
 jsonschema = "0.18"

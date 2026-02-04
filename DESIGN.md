@@ -94,7 +94,7 @@ Notes:
 
 ## Hybrid Retrieval
 - Lexical search via SQLite FTS5 (BM25-like); sanitized fallback if parsing fails.
-- Semantic search via embeddings (default embedded model2vec) using sqlite-vec `vec0` with cosine distance.
+- Semantic search via embeddings (default embedded potion-base-8M, dim 256) using sqlite-vec `vec0` with cosine distance.
 - Scores are normalized and combined with explicit weights from config.
 - Filters are strict and never invoke semantic inference.
 

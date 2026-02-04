@@ -1,6 +1,5 @@
 ---
 source: tests/cli_golden.rs
-assertion_line: 166
 expression: normalize_json(search_json)
 ---
 {
@@ -63,9 +62,9 @@ expression: normalize_json(search_json)
       },
       "explain": {
         "lexical": 1.0,
-        "semantic": 0.4472135901451111
+        "semantic": 0.6536963582038879
       },
-      "score": 0.7236068248748779
+      "score": 0.8268481492996216
     }
   ],
   "schema_version": "2",

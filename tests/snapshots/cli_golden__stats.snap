@@ -1,6 +1,5 @@
 ---
 source: tests/cli_golden.rs
-assertion_line: 223
 expression: normalize_json(stats_json)
 ---
 {

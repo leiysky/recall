@@ -530,6 +530,7 @@ Recall uses an optional global config file in the OS config directory:
 - `embedding`, `embedding_dim`
 - `bm25_weight`, `vector_weight`
 - `max_limit`
+Notes: default `embedding = "model2vec"` uses the embedded potion-base-8M model (dim 256), and `embedding_dim` must match that dimension.
 
 ##### Future (Explicitly Out of MVP Scope)
 - Additional parsers (PDF deferred).

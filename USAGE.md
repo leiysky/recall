@@ -151,5 +151,5 @@ vector_weight = 0.5
 max_limit = 1000
 ```
 Notes:
-- `embedding` supports `"model2vec"` (default) or `"hash"`.
-- `embedding_dim` must match the embedded model2vec dimension (256) when using `"model2vec"`.
+- `embedding` supports `"model2vec"` (default, embedded potion-base-8M) or `"hash"`.
+- `embedding_dim` must match the embedded model2vec dimension (currently 256) when using `"model2vec"`.
