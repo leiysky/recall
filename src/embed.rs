@@ -12,21 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
+use std::fs;
 use std::sync::OnceLock;
 
 use anyhow::Context;
 use anyhow::Result;
-use serde::Deserialize;
 use sha2::Digest;
 use sha2::Sha256;
+use tempfile::TempDir;
+
+use model2vec_rs::model::StaticModel;
 
 use crate::config::Config;
 
 pub const EMBEDDING_HASH: &str = "hash";
 pub const EMBEDDING_MODEL2VEC: &str = "model2vec";
-pub const MODEL2VEC_DIM: usize = 256;
-const MODEL2VEC_NAME: &str = "recall-embedded-model2vec-v1";
+const MODEL2VEC_SAFETENSORS: &[u8] = include_bytes!("../assets/model2vec-rs/model.safetensors");
+const MODEL2VEC_TOKENIZER: &[u8] = include_bytes!("../assets/model2vec-rs/tokenizer.json");
+const MODEL2VEC_CONFIG: &[u8] = include_bytes!("../assets/model2vec-rs/config.json");
 
 #[derive(Debug, Clone, Copy)]
 pub struct EmbeddingSpec {
@@ -42,16 +45,17 @@ pub fn resolve_embedding(config: &Config) -> Result<EmbeddingSpec> {
             dim: config.embedding_dim.max(1),
         }),
         EMBEDDING_MODEL2VEC => {
-            if config.embedding_dim != 0 && config.embedding_dim != MODEL2VEC_DIM {
+            let dim = model2vec_dim()?;
+            if config.embedding_dim != 0 && config.embedding_dim != dim {
                 anyhow::bail!(
-                    "config embedding_dim {} does not match model2vec embedding_dim {}",
+                    "config embedding_dim {} does not match embedded model2vec dim {}",
                     config.embedding_dim,
-                    MODEL2VEC_DIM
+                    dim
                 );
             }
             Ok(EmbeddingSpec {
                 name: EMBEDDING_MODEL2VEC,
-                dim: MODEL2VEC_DIM,
+                dim,
             })
         }
         _ => anyhow::bail!(
@@ -112,18 +116,10 @@ fn l2_normalize(mut vec: Vec<f32>) -> Vec<f32> {
     vec
 }
 
-#[derive(Debug, Deserialize)]
-struct Model2VecFile {
-    name: String,
-    dim: usize,
-    tokens: Vec<String>,
-    vectors: Vec<Vec<f32>>,
-}
-
 #[derive(Debug)]
 struct Model2VecInner {
     dim: usize,
-    vocab: HashMap<String, Vec<f32>>,
+    model: StaticModel,
 }
 
 #[derive(Clone, Copy)]
@@ -133,83 +129,57 @@ pub struct Model2VecEmbedder {
 
 impl Model2VecEmbedder {
     pub fn new() -> Result<Self> {
-        static MODEL: OnceLock<Model2VecInner> = OnceLock::new();
-        let inner = match MODEL.get() {
-            Some(inner) => inner,
-            None => {
-                let model = load_model2vec()?;
-                MODEL.get_or_init(|| model)
-            }
-        };
+        let inner = model2vec_inner()?;
         Ok(Self { inner })
     }
 }
 
 impl Embedder for Model2VecEmbedder {
     fn embed(&self, text: &str) -> Vec<f32> {
-        let mut vec = vec![0.0f32; self.inner.dim];
-        let mut used = 0usize;
-        for raw in text.split_whitespace() {
-            if let Some(model_vec) = self.inner.vocab.get(raw) {
-                for (i, val) in model_vec.iter().enumerate() {
-                    vec[i] += val;
-                }
-            } else {
-                let (idx, sign) = hash_token_feature(raw, self.inner.dim);
-                vec[idx] += sign;
-            }
-            used += 1;
-        }
-        if used == 0 {
+        let mut batch = self.inner.model.encode(&[text.to_string()]);
+        let Some(vec) = batch.pop() else {
+            return HashEmbedder::new(self.inner.dim).embed(text);
+        };
+        if vec.is_empty() {
             return HashEmbedder::new(self.inner.dim).embed(text);
         }
         l2_normalize(vec)
     }
 }
 
+fn model2vec_inner() -> Result<&'static Model2VecInner> {
+    static MODEL: OnceLock<Model2VecInner> = OnceLock::new();
+    if let Some(inner) = MODEL.get() {
+        return Ok(inner);
+    }
+    let inner = load_model2vec()?;
+    Ok(MODEL.get_or_init(|| inner))
+}
+
+fn model2vec_dim() -> Result<usize> {
+    Ok(model2vec_inner()?.dim)
+}
+
 fn load_model2vec() -> Result<Model2VecInner> {
-    let raw = include_str!("../assets/model2vec.json");
-    let data: Model2VecFile = serde_json::from_str(raw).context("parse embedded model2vec")?;
-    if data.name != MODEL2VEC_NAME {
-        anyhow::bail!(
-            "embedded model2vec name '{}' does not match expected '{}'",
-            data.name,
-            MODEL2VEC_NAME
-        );
+    let temp_dir = TempDir::new().context("create model2vec tempdir")?;
+    let dir = temp_dir.path();
+    fs::write(dir.join("model.safetensors"), MODEL2VEC_SAFETENSORS)
+        .context("write embedded model2vec safetensors")?;
+    fs::write(dir.join("tokenizer.json"), MODEL2VEC_TOKENIZER)
+        .context("write embedded model2vec tokenizer")?;
+    fs::write(dir.join("config.json"), MODEL2VEC_CONFIG)
+        .context("write embedded model2vec config")?;
+    let model = StaticModel::from_pretrained(dir, None, Some(false), None)
+        .context("load embedded model2vec")?;
+    let dim = model
+        .encode(&["".to_string()])
+        .get(0)
+        .map(|vec| vec.len())
+        .unwrap_or(0);
+    if dim == 0 {
+        anyhow::bail!("embedded model2vec returned empty embedding");
     }
-    if data.dim != MODEL2VEC_DIM {
-        anyhow::bail!(
-            "embedded model2vec dim {} does not match expected {}",
-            data.dim,
-            MODEL2VEC_DIM
-        );
-    }
-    if data.tokens.len() != data.vectors.len() {
-        anyhow::bail!(
-            "embedded model2vec token/vector mismatch (tokens {}, vectors {})",
-            data.tokens.len(),
-            data.vectors.len()
-        );
-    }
-    let mut vocab = HashMap::new();
-    for (token, mut vec) in data.tokens.into_iter().zip(data.vectors.into_iter()) {
-        if vec.len() != MODEL2VEC_DIM {
-            anyhow::bail!(
-                "embedded model2vec token '{}' has dim {}, expected {}",
-                token,
-                vec.len(),
-                MODEL2VEC_DIM
-            );
-        }
-        vec = l2_normalize(vec);
-        if vocab.insert(token, vec).is_some() {
-            anyhow::bail!("embedded model2vec has duplicate token");
-        }
-    }
-    Ok(Model2VecInner {
-        dim: MODEL2VEC_DIM,
-        vocab,
-    })
+    Ok(Model2VecInner { dim, model })
 }
 
 fn hash_token_feature(token: &str, dim: usize) -> (usize, f32) {
@@ -237,17 +207,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn model2vec_matches_hash_for_sample_text() {
-        let text = "hello world this is recall";
-        let hash = HashEmbedder::new(MODEL2VEC_DIM).embed(text);
-        let model = Model2VecEmbedder::new().expect("model2vec").embed(text);
-        assert_eq!(hash, model);
+    fn model2vec_embedding_dim_matches_spec() {
+        let config = Config {
+            embedding_dim: 0,
+            ..Default::default()
+        };
+        let spec = resolve_embedding(&config).expect("spec");
+        let model = Model2VecEmbedder::new().expect("model2vec");
+        let vec = model.embed("hello world this is recall");
+        assert_eq!(spec.dim, vec.len());
     }
 
     #[test]
     fn resolve_embedding_rejects_model2vec_dim_mismatch() {
+        let dim = model2vec_dim().expect("model2vec dim");
         let config = Config {
-            embedding_dim: MODEL2VEC_DIM + 1,
+            embedding_dim: dim + 1,
             ..Default::default()
         };
         assert!(resolve_embedding(&config).is_err());

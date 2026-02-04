@@ -1,6 +1,5 @@
 ---
 source: tests/cli_golden.rs
-assertion_line: 166
 expression: normalize_json(search_json)
 ---
 {
@@ -25,7 +24,7 @@ expression: normalize_json(search_json)
       "bm25_weight": 0.5,
       "chunk_tokens": 256,
       "embedding": "model2vec",
-      "embedding_dim": 256,
+      "embedding_dim": 2,
       "lexical_mode": "fts5",
       "max_limit": 1000,
       "overlap_tokens": 32,
@@ -63,9 +62,9 @@ expression: normalize_json(search_json)
       },
       "explain": {
         "lexical": 1.0,
-        "semantic": 0.4472135901451111
+        "semantic": 0.8466989994049072
       },
-      "score": 0.7236068248748779
+      "score": 0.9233494997024536
     }
   ],
   "schema_version": "2",

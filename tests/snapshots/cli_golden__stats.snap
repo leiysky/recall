@@ -1,6 +1,5 @@
 ---
 source: tests/cli_golden.rs
-assertion_line: 223
 expression: normalize_json(stats_json)
 ---
 {
@@ -14,7 +13,7 @@ expression: normalize_json(stats_json)
       "docs": 1,
       "tokens": 5
     },
-    "db_size_bytes": 1142784,
+    "db_size_bytes": 102400,
     "doc_count": 1,
     "memory": {},
     "snapshot": "",
