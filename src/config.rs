@@ -40,7 +40,7 @@ impl Default for Config {
             chunk_tokens: 256,
             overlap_tokens: 32,
             embedding_dim: 256,
-            embedding: "hash".to_string(),
+            embedding: "model2vec".to_string(),
             bm25_weight: 0.5,
             vector_weight: 0.5,
             max_limit: 1000,
@@ -97,15 +97,6 @@ fn config_dir() -> Option<PathBuf> {
         return None;
     }
 
-    if cfg!(target_os = "macos") {
-        let home = std::env::var("HOME").ok()?;
-        return Some(
-            PathBuf::from(home)
-                .join("Library")
-                .join("Application Support"),
-        );
-    }
-
     if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
         return Some(PathBuf::from(xdg));
     }
@@ -153,6 +144,7 @@ pub fn read_config(path: &Path) -> Result<Config> {
     if config.overlap_tokens >= config.chunk_tokens {
         config.overlap_tokens = 0;
     }
+    config.embedding = config.embedding.trim().to_lowercase();
     Ok(config)
 }
 
@@ -169,12 +161,7 @@ mod tests {
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     fn config_path(config_root: &Path) -> PathBuf {
-        let base = if cfg!(target_os = "macos") {
-            config_root.join("Library").join("Application Support")
-        } else {
-            config_root.to_path_buf()
-        };
-        base.join("recall").join("recall.toml")
+        config_root.join("recall").join("recall.toml")
     }
 
     fn with_env<T>(config_root: &Path, f: impl FnOnce() -> T) -> T {

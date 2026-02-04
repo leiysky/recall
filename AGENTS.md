@@ -479,7 +479,7 @@ Notes:
 
 ##### Hybrid Retrieval
 - Lexical search via SQLite FTS5 (BM25-like); sanitized fallback if parsing fails.
-- Semantic search via embeddings (default deterministic hash) using sqlite-vec `vec0` with cosine distance.
+- Semantic search via embeddings (default embedded model2vec) using sqlite-vec `vec0` with cosine distance.
 - Scores are normalized and combined with explicit weights from config.
 - Filters are strict and never invoke semantic inference.
 
@@ -523,7 +523,8 @@ Context entries include:
 
 ##### Configuration (Global recall.toml)
 Recall uses an optional global config file in the OS config directory:
-`<config_dir>/recall/recall.toml`.
+`<config_dir>/recall/recall.toml`. On Unix (including macOS), this follows XDG
+(`$XDG_CONFIG_HOME` or `$HOME/.config`).
 - `store_path`
 - `chunk_tokens`, `overlap_tokens`
 - `embedding`, `embedding_dim`

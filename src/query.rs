@@ -24,7 +24,8 @@ use serde_json::json;
 
 use crate::config::Config;
 use crate::embed::Embedder;
-use crate::embed::HashEmbedder;
+use crate::embed::build_embedder;
+use crate::embed::resolve_embedding;
 use crate::embed::to_bytes;
 use crate::model::ChunkRow;
 use crate::model::DocRow;
@@ -447,11 +448,17 @@ pub fn search_chunks_with_inputs(
     }
 
     let mut semantic_results = Vec::new();
+    let embedder = if opts.use_semantic {
+        Some(build_embedder(config)?)
+    } else {
+        None
+    };
     if opts.use_semantic {
         let sem_start = Instant::now();
         if let Some(sem_query) = inputs.semantic.clone() {
+            let embedder = embedder.as_deref().expect("embedder");
             semantic_results =
-                semantic_search(store, config, &sem_query, &filter, opts.k, candidate_k)?;
+                semantic_search(store, embedder, &sem_query, &filter, opts.k, candidate_k)?;
         } else {
             explain_warnings
                 .push("semantic search requested but no semantic query provided".to_string());
@@ -545,6 +552,7 @@ fn build_explain_payload(
         "none"
     };
 
+    let embedding = resolve_embedding(config).ok();
     let mut obj = serde_json::Map::new();
     obj.insert("mode".into(), json!(mode));
     obj.insert(
@@ -566,8 +574,8 @@ fn build_explain_payload(
     obj.insert(
         "resolved_config".into(),
         json!({
-            "embedding": config.embedding,
-            "embedding_dim": config.embedding_dim,
+            "embedding": embedding.map(|spec| spec.name).unwrap_or(&config.embedding),
+            "embedding_dim": embedding.map(|spec| spec.dim).unwrap_or(config.embedding_dim),
             "vector_index": "sqlite-vec",
             "bm25_weight": config.bm25_weight,
             "vector_weight": config.vector_weight,
@@ -920,13 +928,12 @@ fn is_fts5_syntax_error(err: &anyhow::Error) -> bool {
 
 fn semantic_search(
     store: &Store,
-    config: &Config,
+    embedder: &dyn Embedder,
     query: &str,
     filter: &SqlFragment,
     k: usize,
     candidate_k: usize,
 ) -> Result<Vec<ScoredItem>> {
-    let embedder = HashEmbedder::new(config.embedding_dim);
     let query_vec = embedder.embed(query);
     semantic_search_vec(store, &query_vec, filter, k, candidate_k)
 }
